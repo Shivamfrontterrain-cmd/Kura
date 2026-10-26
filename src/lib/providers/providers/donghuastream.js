@@ -10,7 +10,7 @@ import { getMedia } from "../core/anilist.js";
 
 const BASE = "https://donghuastream.org";
 const H = {
-  "User-Agent": UA,
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
   "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
   "Referer": `${BASE}/`,
 };
@@ -93,7 +93,30 @@ export async function findSeriesUrl(anilistId, media) {
   ].filter(Boolean).join(" ");
 
   const seasonMatch = allTitles.match(/season\s*(\d+)/i) || allTitles.match(/(?:^|\s)(\d+)$/);
-  const targetSeason = seasonMatch ? Number(seasonMatch[1]) : null;
+  const targetSeason = seasonMatch ? Number(seasonMatch[1]) : (range && range.start >= 80 ? 4 : (range && range.start >= 50 ? 5 : null));
+
+  // Direct slug candidate check for rapid resolution
+  const candidateSlugs = [];
+  const lowerAll = allTitles.toLowerCase();
+  if (lowerAll.includes("swallowed star") || lowerAll.includes("tunshi")) {
+    const sNum = targetSeason || (range ? 4 : 1);
+    candidateSlugs.push(`swallowed-star-season-${sNum}th`, `swallowed-star-season-${sNum}`);
+  }
+  if (lowerAll.includes("battle through the heavens") || lowerAll.includes("doupo")) {
+    const sNum = targetSeason || (range ? 5 : 1);
+    candidateSlugs.push(`battle-through-the-heavens-season-${sNum}th`, `battle-through-the-heavens-season-${sNum}`);
+  }
+
+  for (const slug of candidateSlugs) {
+    const directUrl = `${BASE}/anime/${slug}/`;
+    try {
+      const dRes = await fetch(directUrl, { headers: H });
+      if (dRes.ok) {
+        cacheSet(cacheKey, directUrl, SHOW_IDENTITY_TTL);
+        return directUrl;
+      }
+    } catch {}
+  }
 
   for (const query of queries) {
     try {
@@ -132,20 +155,20 @@ export async function findSeriesUrl(anilistId, media) {
           const itemSeasonMatch = lowerTitle.match(/season\s*(\d+)/i) || lowerLink.match(/season-(\d+)/i);
           const itemSeason = itemSeasonMatch ? Number(itemSeasonMatch[1]) : (lowerTitle.includes("season 1") ? 1 : null);
 
-          if (range && range.start >= 50) {
+          if (targetSeason !== null) {
+            if (itemSeason === targetSeason) {
+              score += 60;
+            } else if (targetSeason >= 5 && itemSeason === 5) {
+              score += 35;
+            } else if (itemSeason !== null) {
+              score -= 30;
+            }
+          } else if (range && range.start >= 50) {
             // Multi-year continuous broadcast (e.g. BTTH Season 5)
             if (itemSeason === 5 || lowerLink.includes("season-5")) {
               score += 60;
             } else if (itemSeason === 1 || itemSeason === null) {
               score -= 30;
-            }
-          } else if (targetSeason !== null) {
-            if (itemSeason === targetSeason) {
-              score += 50;
-            } else if (targetSeason >= 5 && itemSeason === 5) {
-              score += 35;
-            } else if (itemSeason !== null) {
-              score -= 20;
             }
           } else {
             if (itemSeason === 1 || itemSeason === null) score += 15;
@@ -171,6 +194,7 @@ export async function findSeriesUrl(anilistId, media) {
 
   return null;
 }
+
 
 function episodeMeta(epNum, ctx) {
   const anizipEp = ctx?.anizip?.episodes?.[String(epNum)];

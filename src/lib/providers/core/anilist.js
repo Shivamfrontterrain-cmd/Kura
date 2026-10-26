@@ -55,7 +55,7 @@ async function fetchFromAniListWeb(body) {
 }
 
 async function fetchFromAniList(id) {
-  const fullQuery = `query($id:Int){Media(id:$id,type:ANIME){id idMal title{english romaji native} status format episodes seasonYear startDate{year} genres synonyms countryOfOrigin nextAiringEpisode{episode airingAt timeUntilAiring}}}`;
+  const fullQuery = `query($id:Int){Media(id:$id,type:ANIME){id idMal title{english romaji native} description status format episodes seasonYear startDate{year} genres synonyms countryOfOrigin nextAiringEpisode{episode airingAt timeUntilAiring}}}`;
   const body = JSON.stringify({ query: fullQuery, variables: { id } });
   const res = await fetch("https://graphql.anilist.co", {
     method: "POST",
