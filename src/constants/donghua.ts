@@ -151,6 +151,135 @@ export const KNOWN_DONGHUA_EN_TITLES: Record<number, string> = {
   156111: "The Girl Downstairs",
 };
 
+export const KNOWN_DONGHUA_POSTERS: Record<number, string> = {
+  // Battle Through the Heavens
+  98314: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-1.webp",
+  102464: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-1.webp",
+  107026: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-2.webp",
+  102463: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-2.webp",
+  102462: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Specials.webp",
+  109484: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Specials.webp",
+  114123: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-3.webp",
+  104922: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-3.webp",
+  137729: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Three-Year-Agreement.webp",
+  131584: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-4.webp",
+  122639: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-Season-4.webp",
+  137730: "https://donghuaworld.com/wp-content/uploads/2022/10/Battle-Through-the-Heavens-The-Origin.webp",
+  196613: "https://donghuaworld.com/wp-content/uploads/2023/01/Battle-Through-the-Heavens-Season-5-1.webp",
+  168164: "https://donghuaworld.com/wp-content/uploads/2023/01/Battle-Through-the-Heavens-Season-5-1.webp",
+  168163: "https://donghuaworld.com/wp-content/uploads/2023/01/Battle-Through-the-Heavens-Season-5-1.webp",
+  137728: "https://donghuaworld.com/wp-content/uploads/2023/01/Battle-Through-the-Heavens-Season-5-1.webp",
+
+  // Swallowed Star
+  131580: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  117012: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  142750: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  134283: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  152864: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  166218: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  166219: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+  185724: "https://donghuaworld.com/wp-content/uploads/2022/10/Swallowed-Star.webp",
+
+  // Soul Land
+  131518: "https://donghuaworld.com/wp-content/uploads/2022/10/Soul-Land.webp",
+  102465: "https://donghuaworld.com/wp-content/uploads/2022/10/Soul-Land.webp",
+  156360: "https://donghuaworld.com/wp-content/uploads/2023/06/Soul-Land-2-The-Unrivaled-Tang-Sect.webp",
+
+  // Perfect World
+  132405: "https://donghuaworld.com/wp-content/uploads/2022/10/Perfect-World.webp",
+  120218: "https://donghuaworld.com/wp-content/uploads/2022/10/Perfect-World.webp",
+
+  // Renegade Immortal
+  152636: "https://donghuaworld.com/wp-content/uploads/2023/09/Renegade-Immortal-Xian-Ni.webp",
+  137653: "https://donghuaworld.com/wp-content/uploads/2023/09/Renegade-Immortal-Xian-Ni.webp",
+
+  // Shrouding the Heavens
+  153070: "https://donghuaworld.com/wp-content/uploads/2023/05/Shrouding-the-Heavens.webp",
+  137671: "https://donghuaworld.com/wp-content/uploads/2023/05/Shrouding-the-Heavens.webp",
+
+  // Against the Gods
+  160533: "https://donghuaworld.com/wp-content/uploads/2023/12/Against-the-Gods.webp",
+
+  // Martial Universe
+  163262: "https://donghuaworld.com/wp-content/uploads/2023/11/Martial-Universe-Season-4.webp",
+
+  // The Great Ruler
+  163273: "https://donghuaworld.com/wp-content/uploads/2023/07/The-Great-Ruler.webp",
+
+  // Throne of Seal
+  143588: "https://donghuaworld.com/wp-content/uploads/2022/10/Throne-of-Seal.webp",
+
+  // Jade Dynasty
+  150336: "https://donghuaworld.com/wp-content/uploads/2022/10/Jade-Dynasty.webp",
+
+  // A Record of a Mortal's Journey to Immortality
+  120055: "https://donghuaworld.com/wp-content/uploads/2022/10/A-Record-of-a-Mortals-Journey-to-Immortality.webp",
+  142168: "https://donghuaworld.com/wp-content/uploads/2022/10/A-Record-of-a-Mortals-Journey-to-Immortality-Season-2.webp",
+  160534: "https://donghuaworld.com/wp-content/uploads/2023/11/A-Record-of-a-Mortals-Journey-to-Immortality-Season-3.webp",
+
+  // A Will Eternal
+  120056: "https://donghuaworld.com/wp-content/uploads/2022/10/A-Will-Eternal.webp",
+  150073: "https://donghuaworld.com/wp-content/uploads/2022/10/A-Will-Eternal-Season-2.webp",
+};
+
+export const KNOWN_DONGHUA_SERIES_RELATIONS: Record<number, number[]> = {
+  // BTTH group
+  98314: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  102464: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  107026: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  102463: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  102462: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  109484: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  114123: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  104922: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  137729: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  131584: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  122639: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  137730: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  196613: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  168164: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  168163: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+  137728: [98314, 107026, 102462, 114123, 137729, 131584, 137730, 196613],
+
+  // Swallowed Star group
+  131580: [131580, 142750, 152864, 166219, 185724],
+  117012: [131580, 142750, 152864, 166219, 185724],
+  142750: [131580, 142750, 152864, 166219, 185724],
+  134283: [131580, 142750, 152864, 166219, 185724],
+  152864: [131580, 142750, 152864, 166219, 185724],
+  166218: [131580, 142750, 152864, 166219, 185724],
+  166219: [131580, 142750, 152864, 166219, 185724],
+  185724: [131580, 142750, 152864, 166219, 185724],
+
+  // Soul Land group
+  131518: [131518, 156360],
+  102465: [131518, 156360],
+  156360: [131518, 156360],
+
+  // RMJI group
+  120055: [120055, 142168, 160534],
+  142168: [120055, 142168, 160534],
+  160534: [120055, 142168, 160534],
+
+  // A Will Eternal group
+  120056: [120056, 150073],
+  150073: [120056, 150073],
+
+  // Link Click group
+  115230: [115230, 141352, 170166],
+  141352: [115230, 141352, 170166],
+  170166: [115230, 141352, 170166],
+
+  // Mo Dao Zu Shi group
+  101349: [101349, 108605, 116674],
+  108605: [101349, 108605, 116674],
+  116674: [101349, 108605, 116674],
+
+  // TGCF group
+  112151: [112151, 130545],
+  130545: [112151, 130545],
+};
+
 export const KNOWN_DONGHUA_IDS = new Set<number>([
   ...Object.keys(KNOWN_DONGHUA_EN_TITLES).map(Number),
   132405, // Perfect World alt

@@ -1,4 +1,6 @@
 import { CACHE_HEADERS, fetchAnimeInfo } from "@/lib/anilist";
+import { fetchDonghuaWorldInfo } from "@/lib/donghuaworld-info";
+import { isKnownDonghua } from "@/constants/donghua";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -10,6 +12,14 @@ export async function GET(
     const animeId = Number(id);
     if (!animeId || isNaN(animeId)) {
       return NextResponse.json({ error: "Invalid anime ID" }, { status: 400 });
+    }
+
+    // For Donghua: strictly use DonghuaWorld for poster, image, synopsis, episodes count, and seasons
+    if (isKnownDonghua(animeId)) {
+      const dhwData = await fetchDonghuaWorldInfo(animeId);
+      if (dhwData) {
+        return NextResponse.json(dhwData, { headers: CACHE_HEADERS });
+      }
     }
 
     const data = await fetchAnimeInfo(animeId);

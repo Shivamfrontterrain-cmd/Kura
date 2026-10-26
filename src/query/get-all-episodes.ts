@@ -212,6 +212,13 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
     });
 
     if (episodeList.length === 0) {
+      if (isDonghua) {
+        return {
+          totalEpisodes: 0,
+          episodes: [],
+          availableProviders: ["donghuaworld"],
+        };
+      }
       return await fetchAniListEpisodesFallback(animeId);
     }
 
@@ -229,6 +236,38 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
       nextAiringEpisode: data.mappings?.nextAiringEpisode || null,
     };
   } catch (err) {
+    if (isKnownDonghua(animeId)) {
+      console.warn(`Upstream /episodes API failed for donghua ${animeId}:`, err);
+      try {
+        const dhwEndpoint = await resolveApiEndpoint(`/episodes/donghuaworld/${animeId}`);
+        const dhwRes: any = dhwEndpoint.startsWith("http")
+          ? await fetch(dhwEndpoint).then((r) => r.json())
+          : (await api.get(`/episodes/donghuaworld/${animeId}`)).data;
+        const subEps = dhwRes?.donghuaworld?.episodes?.sub || [];
+        if (subEps.length > 0) {
+          const episodeList: Episode[] = subEps.map((ep: any) => ({
+            title: ep.title || `Episode ${ep.number}`,
+            episodeId: ep.id || `${ep.number}`,
+            number: ep.number,
+            isFiller: false,
+            hasSub: true,
+            hasDub: false,
+          }));
+          return {
+            totalEpisodes: episodeList.length,
+            episodes: episodeList,
+            availableProviders: ["donghuaworld"],
+          };
+        }
+      } catch (dhwErr) {
+        console.error("Direct fallback to donghuaworld failed:", dhwErr);
+      }
+      return {
+        totalEpisodes: 0,
+        episodes: [],
+        availableProviders: ["donghuaworld"],
+      };
+    }
     console.warn(
       `Upstream /episodes API failed for animeId ${animeId}. Using AniList fallback:`,
       err,

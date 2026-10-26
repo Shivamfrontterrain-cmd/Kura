@@ -21,20 +21,36 @@ export async function smartFetch(url, options = {}) {
     ...H,
     ...(options.headers || {}),
   };
-  try {
-    const res = await wreqFetch(url, {
-      ...options,
-      headers: mergedHeaders,
-      browser: "chrome_149",
-      os: "windows",
-    });
-    if (res && res.status !== 403) {
-      return res;
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await wreqFetch(url, {
+        ...options,
+        headers: mergedHeaders,
+        browser: "chrome_149",
+        os: "windows",
+      });
+      if (res && res.status !== 403) {
+        return res;
+      }
+    } catch (err) {
+      lastErr = err;
     }
-  } catch {
-    // Fall back to native fetch
+
+    try {
+      const res = await fetch(url, { ...options, headers: mergedHeaders });
+      if (res && res.status !== 403) {
+        return res;
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
   }
-  return fetch(url, { ...options, headers: mergedHeaders });
+  throw lastErr || new Error(`Failed to fetch ${url}`);
 }
 
 function stripTags(s) {
@@ -293,7 +309,6 @@ export async function getEpisodes(anilistId, ctx = {}) {
     throw new Error(`DonghuaWorld: No episodes parsed from ${seriesUrl}`);
   }
 
-  const range = parseEpisodeRange(media?.description);
   const sub = [];
 
   for (const item of items) {
@@ -304,86 +319,44 @@ export async function getEpisodes(anilistId, ctx = {}) {
 
     if (!epUrl.includes("episode") && !epUrl.includes("-ep-")) continue;
 
-    let seasonEp = null;
-    let overallEp = null;
+    // Clean URL slug: remove resolution tags (-4k, -1080p, -720p) and suffixes before matching
+    const cleanSlug = epUrl
+      .replace(/https?:\/\/[^/]+\//, "")
+      .replace(/\/$/, "")
+      .replace(/-(?:4k|1080p|720p)/gi, "")
+      .replace(/-multi-subtitles/gi, "")
+      .replace(/-english-subbed/gi, "");
 
-    // Check URL e.g. "episode-247" or "episode-1-86"
-    const urlM = epUrl.match(/episode-(\d+)(?:-(\d+))?/i);
-    if (urlM) {
-      if (urlM[2]) {
-        seasonEp = Number(urlM[1]);
-        overallEp = Number(urlM[2]);
-      } else {
-        const n = Number(urlM[1]);
-        if (range && n >= range.start && n <= range.end) {
-          overallEp = n;
-        } else {
-          seasonEp = n;
-        }
-      }
-    }
-
-    // Check rawNum e.g. "216 (4K)" or "161 [246]"
-    const bracketM = rawNum.match(/\[(\d+)\]/) || rawTitle.match(/\[(\d+)\]/);
-    if (bracketM) {
-      overallEp = Number(bracketM[1]);
-    }
-
-    const startM = rawNum.match(/^(\d+)/);
-    if (startM) {
-      const n = Number(startM[1]);
-      if (bracketM) {
-        seasonEp = n;
-      } else if (!seasonEp && !overallEp) {
-        if (range && n >= range.start && n <= range.end) {
-          overallEp = n;
-        } else {
-          seasonEp = n;
-        }
-      }
-    }
-
-    // Determine final relative episode number
-    let relEpNum = null;
-    if (range) {
-      if (seasonEp && seasonEp <= (range.end - range.offset)) {
-        relEpNum = seasonEp;
-      } else if (overallEp && overallEp >= range.start && overallEp <= range.end) {
-        relEpNum = overallEp - range.offset;
-      } else if (seasonEp && seasonEp >= range.start && seasonEp <= range.end) {
-        relEpNum = seasonEp - range.offset;
-      } else {
-        relEpNum = seasonEp || overallEp;
-      }
+    let epNum = null;
+    const epMatch = cleanSlug.match(/episode-(\d+)/i);
+    if (epMatch) {
+      epNum = Number(epMatch[1]);
     } else {
-      relEpNum = seasonEp || overallEp;
+      const numMatch = rawNum.match(/^(\d+)/);
+      if (numMatch) epNum = Number(numMatch[1]);
     }
 
-    if (!relEpNum || !Number.isFinite(relEpNum) || relEpNum <= 0) continue;
+    if (!epNum || !Number.isFinite(epNum) || epNum <= 0) continue;
 
-    // Cache under multiple keys for resilient lookup
-    cacheSet(`dhw:ep:${anilistId}:${relEpNum}`, epUrl, SHOW_IDENTITY_TTL);
-    if (seasonEp) cacheSet(`dhw:ep:${anilistId}:${seasonEp}`, epUrl, SHOW_IDENTITY_TTL);
-    if (overallEp) cacheSet(`dhw:ep:${anilistId}:${overallEp}`, epUrl, SHOW_IDENTITY_TTL);
+    // Direct cache by exact episode number
+    cacheSet(`dhw:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
 
-    const meta = episodeMeta(relEpNum, ctx);
-    const cleanTitle = overallEp
-      ? `Episode ${relEpNum} [Ep ${overallEp}]`
-      : rawTitle || meta.title || `Episode ${relEpNum}`;
-    const cleanDate = rawDate || meta.airDate;
+    const cleanTitle = rawTitle && !rawTitle.toLowerCase().includes("episode")
+      ? `Episode ${epNum}: ${rawTitle}`
+      : `Episode ${epNum}`;
 
     sub.push({
-      id: `watch/donghuaworld/${anilistId}/sub/donghuaworld-${relEpNum}`,
-      number: relEpNum,
+      id: `watch/donghuaworld/${anilistId}/sub/donghuaworld-${epNum}`,
+      number: epNum,
       title: cleanTitle,
-      duration: meta.duration || 1200,
+      duration: 1200,
       audio: "sub",
       filler: false,
       recap: false,
       uncensored: false,
-      description: meta.description || "",
-      image: meta.image,
-      airDate: cleanDate,
+      description: "",
+      image: null,
+      airDate: rawDate || null,
     });
   }
 
@@ -414,21 +387,8 @@ export async function handleWatch(anilistId, audio, epNum) {
 
   // Fallback: fetch episodes to resolve epUrl if not in cache
   if (!epUrl) {
-    const media = await getMedia(anilistId).catch(() => null);
-    await getEpisodes(anilistId, { media }).catch(() => null);
+    await getEpisodes(anilistId).catch(() => null);
     epUrl = cacheGet(`dhw:ep:${anilistId}:${epNum}`)?.data;
-
-    if (!epUrl && media) {
-      const range = parseEpisodeRange(media.description);
-      const num = Number(epNum);
-      if (range) {
-        if (num <= (range.end - range.offset)) {
-          epUrl = cacheGet(`dhw:ep:${anilistId}:${num + range.offset}`)?.data;
-        } else if (num >= range.start && num <= range.end) {
-          epUrl = cacheGet(`dhw:ep:${anilistId}:${num - range.offset}`)?.data;
-        }
-      }
-    }
   }
 
   if (!epUrl) {
