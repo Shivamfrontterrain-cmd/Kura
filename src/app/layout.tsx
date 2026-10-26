@@ -22,8 +22,8 @@ const geistSans = localFont({
 //   weight: "100 900",
 // });
 
-const APP_NAME = "Kitsune";
-const APP_DEFAULT_TITLE = "Kitsune | Anime Streaming";
+const APP_NAME = "Kura";
+const APP_DEFAULT_TITLE = "Kura | Anime Streaming";
 const APP_DESCRIPTION = "Stream your favourite anime with ease and no ads";
 
 export const metadata: Metadata = {
@@ -42,11 +42,6 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: APP_NAME,
-    title: APP_DEFAULT_TITLE,
-    description: APP_DESCRIPTION,
-  },
-  twitter: {
-    card: "summary",
     title: APP_DEFAULT_TITLE,
     description: APP_DESCRIPTION,
   },

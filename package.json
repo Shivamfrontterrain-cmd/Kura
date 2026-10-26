@@ -1,5 +1,5 @@
 {
-  "name": "kitsune",
+  "name": "kura",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -64,5 +64,6 @@
   "overrides": {
     "react": "$react",
     "react-dom": "$react-dom"
-  }
+  },
+  "type": "module"
 }

@@ -79,19 +79,26 @@ function useBookMarks({
       { animeID, status, page, per_page, userId: targetUserId },
     ],
     queryFn: async () => {
-      const res = await pb
-        .collection<Bookmark>("bookmarks")
-        .getList(page, per_page, {
-          filter: filters,
-          expand: "watchHistory",
-          sort: "-updated",
-          requestKey: null,
-        });
+      try {
+        const res = await pb
+          .collection<Bookmark>("bookmarks")
+          .getList(page, per_page, {
+            filter: filters,
+            expand: "watchHistory",
+            sort: "-updated",
+            requestKey: null,
+          });
 
-      return {
-        bookmarks: res.items.length > 0 ? res.items : null,
-        totalPages: res.totalPages,
-      };
+        return {
+          bookmarks: res.items.length > 0 ? res.items : null,
+          totalPages: res.totalPages,
+        };
+      } catch {
+        return {
+          bookmarks: null,
+          totalPages: 0,
+        };
+      }
     },
     enabled: populate && !!targetUserId,
     staleTime: 1000 * 60 * 5,

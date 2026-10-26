@@ -97,7 +97,7 @@ const NavBar = () => {
               "text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-gray-200 to-pink-600 tracking-widest",
             ])}
           >
-            Kitsunee
+            Kura
           </h1>
         </Link>
 

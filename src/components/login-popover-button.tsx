@@ -3,7 +3,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import Button from "./common/custom-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Input } from "./ui/input";
-import DiscordIcon from "@/icons/discord";
 import { pb } from "@/lib/pocketbase";
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/auth-store";
@@ -112,30 +111,6 @@ function LoginPopoverButton() {
     });
   };
 
-  const loginWithDiscord = async () => {
-    const res = await pb.collection("users").authWithOAuth2({
-      provider: "discord",
-    });
-
-    if (pb.authStore.isValid && pb.authStore.record) {
-      await pb.collection("users").update(pb.authStore.record?.id!, {
-        username: res.meta?.username,
-      });
-
-      toast.success("Login successful", { style: { background: "green" } });
-      auth.setAuth({
-        id: pb.authStore.record.id,
-        email: pb.authStore.record.email,
-        username: pb.authStore.record.username,
-        avatar: pb.authStore.record.avatar,
-        collectionId: pb.authStore.record.collectionId,
-        collectionName: pb.authStore.record.collectionName,
-        autoSkip: pb.authStore.record.autoSkip,
-        created: pb.authStore.record.created,
-      });
-    }
-  };
-
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -197,16 +172,6 @@ function LoginPopoverButton() {
             >
               Login
             </Button>
-            <hr className="text-white text-xs text-center" />
-            <Button
-              variant="default"
-              className="bg-blue-600 hover:bg-blue-800 text-white w-full text-xs"
-              size="sm"
-              onClick={loginWithDiscord}
-            >
-              <DiscordIcon className="mr-2" />
-              Login with Discord
-            </Button>
           </TabsContent>
           <TabsContent value="signup" className="flex flex-col gap-2">
             <div>
@@ -261,16 +226,6 @@ function LoginPopoverButton() {
               onClick={signupWithEmail}
             >
               Signup
-            </Button>
-            <hr className="text-white text-xs text-center" />
-            <Button
-              variant="default"
-              className="bg-blue-600 hover:bg-blue-800 text-white w-full text-xs"
-              size="sm"
-              onClick={loginWithDiscord}
-            >
-              <DiscordIcon className="mr-2" />
-              Signup with Discord
             </Button>
           </TabsContent>
         </Tabs>

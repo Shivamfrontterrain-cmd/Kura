@@ -15,12 +15,13 @@ export const useGetSourceAvailable = () => {
           return Boolean(records.items[0].available);
         }
         return true; // Default to true if table record is empty
-      } catch (error) {
-        console.error("Error fetching sys_source_available:", error);
-        return true; // Default to true on error so stream is attempted
+      } catch {
+        // Default to true on error so stream is attempted without crashing console
+        return true;
       }
     },
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
+    retry: false,
   });
 };

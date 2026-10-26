@@ -155,9 +155,3 @@ Access the app at `http://localhost:3000`.
 3. Commit your changes (`git commit -m "feat: add feature"`)
 4. Push to the branch (`git push origin feat/my-feature`)
 5. Open a Pull Request
-
----
-
-## Community & Support
-
-- Discord: [https://discord.gg/6yAJ3XDHTt](https://discord.gg/6yAJ3XDHTt)

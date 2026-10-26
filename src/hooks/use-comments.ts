@@ -23,30 +23,39 @@ export const useGetComments = ({
   return useQuery({
     queryKey: [GET_COMMENTS_KEY, { animeId, episodeNumber, page, perPage }],
     queryFn: async () => {
-      const filters = [];
-      if (animeId) filters.push(`animeId = "${animeId}"`);
-      if (episodeNumber !== undefined && episodeNumber !== null) {
-        filters.push(`episodeNumber = ${episodeNumber}`);
+      try {
+        const filters = [];
+        if (animeId) filters.push(`animeId = "${animeId}"`);
+        if (episodeNumber !== undefined && episodeNumber !== null) {
+          filters.push(`episodeNumber = ${episodeNumber}`);
+        }
+
+        const res = await pb
+          .collection<IComment>("comments")
+          .getList(page, perPage, {
+            filter: filters.join(" && "),
+            expand: "user",
+            sort: "-created",
+            requestKey: null,
+          });
+
+        return {
+          comments: res.items,
+          totalItems: res.totalItems,
+          totalPages: res.totalPages,
+        };
+      } catch {
+        return {
+          comments: [],
+          totalItems: 0,
+          totalPages: 1,
+        };
       }
-
-      const res = await pb
-        .collection<IComment>("comments")
-        .getList(page, perPage, {
-          filter: filters.join(" && "),
-          expand: "user",
-          sort: "-created",
-          requestKey: null,
-        });
-
-      return {
-        comments: res.items,
-        totalItems: res.totalItems,
-        totalPages: res.totalPages,
-      };
     },
     enabled: !!animeId,
     staleTime: 1000 * 60 * 2, // 2 minutes cache
     refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -88,8 +97,7 @@ export const useGetInfiniteComments = ({
           totalPages: res.totalPages,
           page: pageNum,
         };
-      } catch (err) {
-        console.warn("Retrying comments query without expand:", err);
+      } catch {
         try {
           const res = await pb
             .collection<IComment>("comments")
@@ -105,8 +113,7 @@ export const useGetInfiniteComments = ({
             totalPages: res.totalPages,
             page: pageNum,
           };
-        } catch (innerErr) {
-          console.error("Failed to fetch comments:", innerErr);
+        } catch {
           return {
             comments: [],
             totalItems: 0,
@@ -124,7 +131,8 @@ export const useGetInfiniteComments = ({
     },
     enabled: !!animeId,
     staleTime: 0,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
@@ -142,13 +150,14 @@ export const useGetRecentComments = (limit: number = 10) => {
           });
 
         return res.items;
-      } catch (err) {
-        console.error("Failed to fetch recent comments:", err);
+      } catch {
+        // PocketBase backend is offline or comments collection empty/unavailable
         return [];
       }
     },
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 };
 
