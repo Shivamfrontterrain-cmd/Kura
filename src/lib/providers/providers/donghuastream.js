@@ -203,111 +203,143 @@ export async function getEpisodes(anilistId, ctx = {}) {
   }
   const html = await res.text();
 
-  // Extract episode items from series page
-  const epMatches = Array.from(
-    html.matchAll(/<a\s+href="([^"]+)"[^>]*>[\s\S]*?<div class="epl-num">([\s\S]*?)<\/div>[\s\S]*?(?:<div class="epl-title">([\s\S]*?)<\/div>)?[\s\S]*?(?:<div class="epl-date">([\s\S]*?)<\/div>)?[\s\S]*?<\/a>/gi)
+  const startIdx = html.indexOf('class="eplister"');
+  if (startIdx === -1) {
+    throw new Error(`DonghuaStream: eplister not found on ${seriesUrl}`);
+  }
+  const ulMatch = html.slice(startIdx).match(/<ul[^>]*>([\s\S]*?)<\/ul>/i);
+  if (!ulMatch) {
+    throw new Error(`DonghuaStream: No episode ul found inside eplister on ${seriesUrl}`);
+  }
+
+  const items = Array.from(
+    ulMatch[1].matchAll(
+      /<li[^>]*>[\s\S]*?<a\s+href="([^"]+)"[^>]*>[\s\S]*?<div\s+class="epl-num">([\s\S]*?)<\/div>[\s\S]*?(?:<div\s+class="epl-title">([\s\S]*?)<\/div>)?[\s\S]*?(?:<div\s+class="epl-date">([\s\S]*?)<\/div>)?[\s\S]*?<\/li>/gi
+    )
   );
 
-  if (!epMatches.length) {
+  if (!items.length) {
     throw new Error(`DonghuaStream: No episodes parsed from ${seriesUrl}`);
   }
 
   const range = parseEpisodeRange(media?.description);
   const sub = [];
 
-  for (const match of epMatches) {
-    const [, epUrl, rawNum, rawTitle, rawDate] = match;
+  for (const item of items) {
+    const epUrl = item[1];
+    const rawNum = stripTags(item[2] || "").trim();
+    const rawTitle = stripTags(item[3] || "").trim();
+    const rawDate = stripTags(item[4] || "").trim();
 
-    // Skip preview / promo announcements
     if (!epUrl.includes("episode") && !epUrl.includes("-ep-")) continue;
 
-    const numMatch = rawNum.match(/(\d+)/);
-    if (!numMatch) continue;
-    const epNum = Number(numMatch[1]);
-    if (!Number.isFinite(epNum) || epNum <= 0) continue;
+    let seasonEp = null;
+    let overallEp = null;
 
-    const meta = episodeMeta(epNum, ctx);
-    const cleanTitle = stripTags(rawTitle || "").trim() || meta.title || `Episode ${epNum}`;
-    const cleanDate = stripTags(rawDate || "").trim() || meta.airDate;
+    // 1. Check URL for "episode-X-Y" or "episode-X"
+    const urlM = epUrl.match(/episode-(\d+)(?:-(\d+))?/i);
+    if (urlM) {
+      if (urlM[2]) {
+        seasonEp = Number(urlM[1]);
+        overallEp = Number(urlM[2]);
+      } else {
+        const n = Number(urlM[1]);
+        if (range && n >= range.start && n <= range.end) {
+          overallEp = n;
+        } else {
+          seasonEp = n;
+        }
+      }
+    }
 
+    // 2. Check brackets e.g. [246]
+    const bracketM = rawNum.match(/\[(\d+)\]/) || rawTitle.match(/\[(\d+)\]/);
+    if (bracketM) {
+      overallEp = Number(bracketM[1]);
+    }
+
+    // 3. Check leading number in rawNum e.g. "160 [245]"
+    const startM = rawNum.match(/^(\d+)/);
+    if (startM) {
+      const n = Number(startM[1]);
+      if (bracketM) {
+        seasonEp = n;
+      } else if (!seasonEp && !overallEp) {
+        if (range && n >= range.start && n <= range.end) {
+          overallEp = n;
+        } else {
+          seasonEp = n;
+        }
+      }
+    }
+
+    // 4. Check title for "Episode X"
+    const titleEpM = rawTitle.match(/Episode\s*(\d+)/i);
+    if (titleEpM) {
+      const n = Number(titleEpM[1]);
+      if (seasonEp === null || (seasonEp > 50 && n < seasonEp && bracketM)) {
+        seasonEp = n;
+      }
+    }
+
+    // Determine final relative episode number
+    let relEpNum = null;
     if (range) {
-      if (epNum >= range.start && epNum <= range.end) {
-        const relEpNum = epNum - range.offset;
-        // Cache both relative (e.g. 7) and absolute (e.g. 164)
-        cacheSet(`ds:ep:${anilistId}:${relEpNum}`, epUrl, SHOW_IDENTITY_TTL);
-        cacheSet(`ds:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
-
-        sub.push({
-          id: `watch/donghuastream/${anilistId}/sub/donghuastream-${relEpNum}`,
-          number: relEpNum,
-          title: cleanTitle.includes(String(epNum)) ? cleanTitle : `Episode ${relEpNum} [Ep ${epNum}]`,
-          duration: meta.duration || 1200,
-          audio: "sub",
-          filler: false,
-          recap: false,
-          uncensored: false,
-          description: meta.description || "",
-          image: meta.image,
-          airDate: cleanDate,
-        });
+      if (seasonEp && seasonEp <= (range.end - range.offset)) {
+        relEpNum = seasonEp;
+      } else if (overallEp && overallEp >= range.start && overallEp <= range.end) {
+        relEpNum = overallEp - range.offset;
+      } else if (seasonEp && seasonEp >= range.start && seasonEp <= range.end) {
+        relEpNum = seasonEp - range.offset;
+      } else {
+        relEpNum = seasonEp || overallEp;
       }
     } else {
-      cacheSet(`ds:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
-      sub.push({
-        id: `watch/donghuastream/${anilistId}/sub/donghuastream-${epNum}`,
-        number: epNum,
-        title: cleanTitle,
-        duration: meta.duration || 1200,
-        audio: "sub",
-        filler: false,
-        recap: false,
-        uncensored: false,
-        description: meta.description || "",
-        image: meta.image,
-        airDate: cleanDate,
-      });
+      relEpNum = seasonEp || overallEp;
+    }
+
+    if (!relEpNum || !Number.isFinite(relEpNum) || relEpNum <= 0) continue;
+
+    // Cache under multiple keys for resilient lookup
+    cacheSet(`ds:ep:${anilistId}:${relEpNum}`, epUrl, SHOW_IDENTITY_TTL);
+    if (seasonEp) cacheSet(`ds:ep:${anilistId}:${seasonEp}`, epUrl, SHOW_IDENTITY_TTL);
+    if (overallEp) cacheSet(`ds:ep:${anilistId}:${overallEp}`, epUrl, SHOW_IDENTITY_TTL);
+
+    const meta = episodeMeta(relEpNum, ctx);
+    const cleanTitle = overallEp
+      ? `Episode ${relEpNum} [Ep ${overallEp}]`
+      : rawTitle || meta.title || `Episode ${relEpNum}`;
+    const cleanDate = rawDate || meta.airDate;
+
+    sub.push({
+      id: `watch/donghuastream/${anilistId}/sub/donghuastream-${relEpNum}`,
+      number: relEpNum,
+      title: cleanTitle,
+      duration: meta.duration || 1200,
+      audio: "sub",
+      filler: false,
+      recap: false,
+      uncensored: false,
+      description: meta.description || "",
+      image: meta.image,
+      airDate: cleanDate,
+    });
+  }
+
+  // Deduplicate by episode number (keep newest / first parsed)
+  const uniqueMap = new Map();
+  for (const ep of sub) {
+    if (!uniqueMap.has(ep.number)) {
+      uniqueMap.set(ep.number, ep);
     }
   }
 
-  // Fallback: if range matched 0 episodes, push all available episodes
-  if (range && sub.length === 0) {
-    for (const match of epMatches) {
-      const [, epUrl, rawNum, rawTitle, rawDate] = match;
-      if (!epUrl.includes("episode") && !epUrl.includes("-ep-")) continue;
-
-      const numMatch = rawNum.match(/(\d+)/);
-      if (!numMatch) continue;
-      const epNum = Number(numMatch[1]);
-      if (!Number.isFinite(epNum) || epNum <= 0) continue;
-
-      const meta = episodeMeta(epNum, ctx);
-      const cleanTitle = stripTags(rawTitle || "").trim() || meta.title || `Episode ${epNum}`;
-      const cleanDate = stripTags(rawDate || "").trim() || meta.airDate;
-
-      cacheSet(`ds:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
-      sub.push({
-        id: `watch/donghuastream/${anilistId}/sub/donghuastream-${epNum}`,
-        number: epNum,
-        title: cleanTitle,
-        duration: meta.duration || 1200,
-        audio: "sub",
-        filler: false,
-        recap: false,
-        uncensored: false,
-        description: meta.description || "",
-        image: meta.image,
-        airDate: cleanDate,
-      });
-    }
-  }
-
-  // Ensure ascending order (Ep 1, Ep 2, Ep 3 ...)
-  sub.sort((a, b) => a.number - b.number);
+  const finalSub = Array.from(uniqueMap.values()).sort((a, b) => a.number - b.number);
 
   return {
     source: "donghuastream",
     episodes: {
-      sub,
+      sub: finalSub,
       dub: [],
     },
   };
@@ -340,12 +372,33 @@ export async function handleWatch(anilistId, audio, epNum) {
 
     if (!epUrl && media) {
       const range = parseEpisodeRange(media.description);
+      const num = Number(epNum);
       if (range) {
-        const num = Number(epNum);
         if (num <= (range.end - range.offset)) {
           epUrl = cacheGet(`ds:ep:${anilistId}:${num + range.offset}`)?.data;
         } else if (num >= range.start && num <= range.end) {
           epUrl = cacheGet(`ds:ep:${anilistId}:${num - range.offset}`)?.data;
+        }
+      }
+
+      // If still not found, search the series page HTML directly!
+      if (!epUrl) {
+        const seriesUrl = await findSeriesUrl(anilistId, media);
+        if (seriesUrl) {
+          const sRes = await fetch(seriesUrl, { headers: H }).catch(() => null);
+          if (sRes?.ok) {
+            const sHtml = await sRes.text();
+            const startIdx = sHtml.indexOf('class="eplister"');
+            const targetSection = startIdx !== -1 ? sHtml.slice(startIdx) : sHtml;
+            const directEpMatch =
+              targetSection.match(new RegExp(`<a\\s+href="([^"]*episode-${num}-[^-"]*)"`, "i")) ||
+              targetSection.match(new RegExp(`<a\\s+href="([^"]*episode-[^-"]*-${num}[^"]*)"`, "i")) ||
+              targetSection.match(new RegExp(`<a\\s+href="([^"]*episode-${num}[^"]*)"`, "i"));
+            if (directEpMatch) {
+              epUrl = directEpMatch[1];
+              cacheSet(`ds:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
+            }
+          }
         }
       }
     }
@@ -410,7 +463,7 @@ export async function handleWatch(anilistId, audio, epNum) {
           type: "embed",
           quality: "4k",
           priority,
-          isActive: false,
+          isActive: true,
         });
       }
     }
@@ -420,16 +473,31 @@ export async function handleWatch(anilistId, audio, epNum) {
     if (directIframe && !directIframe[1].includes("about:blank")) {
       const dUrl = directIframe[1].startsWith("//") ? `https:${directIframe[1]}` : directIframe[1];
       if (!streams.some((s) => s.url === dUrl) && !dUrl.includes("t.co") && !dUrl.includes("blogspot")) {
-        const dmMatch = dUrl.match(/video=([a-zA-Z0-9]+)/i);
-        if (dmMatch) dmVideoId = dmMatch[1];
+        let srv = "Stream Server";
+        let prio = 2;
+        if (dUrl.includes("dailymotion")) {
+          srv = "Dailymotion (4K)";
+          prio = 2;
+          const dmMatch = dUrl.match(/video=([a-zA-Z0-9]+)/i);
+          if (dmMatch) dmVideoId = dmMatch[1];
+        } else if (dUrl.includes("streamplay")) {
+          srv = "StreamPlay (4K)";
+          prio = 1;
+        } else if (dUrl.includes("rumble")) {
+          srv = "Rumble (4K)";
+          prio = 3;
+        } else if (dUrl.includes("ok.ru")) {
+          srv = "OK.RU (4K)";
+          prio = 4;
+        }
 
         streams.unshift({
-          server: "Dailymotion (4K)",
+          server: srv,
           url: dUrl,
           type: "embed",
           quality: "4k",
-          priority: 2,
-          isActive: false,
+          priority: prio,
+          isActive: true,
         });
       }
     }
@@ -463,11 +531,6 @@ export async function handleWatch(anilistId, audio, epNum) {
     // Sort by priority (StreamPlay -> Dailymotion -> Rumble -> OK.RU)
     streams.sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-    // Mark first stream as active
-    if (streams.length > 0 && !streams.some((s) => s.isActive)) {
-      streams[0].isActive = true;
-    }
-
     const payload = {
       anilistId: Number(anilistId),
       episode: Number(epNum),
@@ -487,6 +550,7 @@ export async function handleWatch(anilistId, audio, epNum) {
     return json({ error: `DonghuaStream: ${err.message}` }, 500);
   }
 }
+
 
 export default {
   async fetch(request) {

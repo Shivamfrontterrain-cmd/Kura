@@ -109,8 +109,8 @@ export function resolveProviders(rawNames) {
 
 function providerFns(anilistId, status, ctx) {
   return {
-    donghuastream: () => withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
-    luciferdonghua: () => withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
+    donghuastream: () => withCache(`epv:match7:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
+    luciferdonghua: () => withCache(`epv:match7:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
     mkissa: () => withCache(`epv:match2:mkissa:${anilistId}`, status, () => mkissaEpisodes(anilistId, ctx)),
     reanime:  () => withCache(`epv:match2:reanime:${anilistId}`, status, () => reanimeEpisodes(anilistId, ctx)),
     anikoto:  () => withCache(`epv:match2:anikoto:${anilistId}`, status, () => anikotoEpisodes(anilistId, ctx)),
@@ -143,7 +143,7 @@ export async function buildFilteredEpisodesWithCache(anilistId, providers, media
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ds = await safe("donghuastream", () =>
-      withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
+      withCache(`epv:match7:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
     );
     const data = ds.ok ? ds.data : { error: ds.error, stack: ds.stack };
     return {
@@ -172,7 +172,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ds = await safe("donghuastream", () =>
-      withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
+      withCache(`epv:match7:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
     );
     const data = ds.ok ? ds.data : { error: ds.error, stack: ds.stack };
     return {
@@ -180,6 +180,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
       luciferdonghua: data,
     };
   }
+
 
   // Non-Donghua: normal Japanese anime providers
   const [mkissa, reanime, anikoto, animegg, animenosub, anizone, aniwaves, senshi, kaa, animedunya, animeonsen, anipm] = await Promise.all([
