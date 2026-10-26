@@ -142,11 +142,13 @@ const VideoPlayerSection = () => {
 
   const isDonghua = React.useMemo(() => {
     return (
+      currentProviderName.toLowerCase() === "donghuastream" ||
       currentProviderName.toLowerCase() === "luciferdonghua" ||
       anime?.anime?.info?.countryOfOrigin === "CN" ||
       directAnimeDetails?.anime?.info?.countryOfOrigin === "CN" ||
       (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
       (allEpisodesData?.rawResponse as any)?.isDonghua === true ||
+      (allEpisodesData?.availableProviders || []).includes("donghuastream") ||
       (allEpisodesData?.availableProviders || []).includes("luciferdonghua")
     );
   }, [
@@ -447,7 +449,7 @@ const VideoPlayerSection = () => {
           <AlertCircle className="h-10 w-10 text-amber-400 mb-3" />
           <h3 className="text-lg font-semibold text-white">Donghua Stream Unavailable</h3>
           <p className="text-sm text-gray-400 max-w-md mt-1">
-            Loading streams from LuciferDonghua. If this persists, please try switching servers or another episode.
+            Loading streams from DonghuaStream. If this persists, please try switching servers or another episode.
           </p>
         </div>
       ) : (

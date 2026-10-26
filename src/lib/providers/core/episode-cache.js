@@ -41,9 +41,13 @@ function hasCurrentProviders(data) {
   if (!data) return false;
   const isDonghua = Boolean(data.isDonghua || data.countryOfOrigin === "CN");
   if (isDonghua) {
-    return Object.prototype.hasOwnProperty.call(data, "luciferdonghua") && !data.luciferdonghua?.error;
+    return (
+      (Object.prototype.hasOwnProperty.call(data, "donghuastream") && !data.donghuastream?.error) ||
+      (Object.prototype.hasOwnProperty.call(data, "luciferdonghua") && !data.luciferdonghua?.error)
+    );
   }
   return (
+    !Object.prototype.hasOwnProperty.call(data, "donghuastream") &&
     !Object.prototype.hasOwnProperty.call(data, "luciferdonghua") &&
     Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
@@ -70,7 +74,8 @@ async function clearProviderCache(anilistId, media) {
   await delAsync(`episodes:match3:${anilistId}`);
   await delAsync(`episodes:match4:${anilistId}`);
   await delAsync(`episodes:match5:${anilistId}`);
-  for (const p of ["luciferdonghua", "pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
+  await delAsync(`episodes:match6:${anilistId}`);
+  for (const p of ["donghuastream", "luciferdonghua", "pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
     await delAsync(`epv:${p}:${anilistId}`);
     if (p === "reanime" || p === "anikoto") {
       await delAsync(`epv:${p}:v2:${anilistId}`);
@@ -78,6 +83,7 @@ async function clearProviderCache(anilistId, media) {
     await delAsync(`epv:match2:${p}:${anilistId}`);
     await delAsync(`epv:match3:${p}:${anilistId}`);
     await delAsync(`epv:match4:${p}:${anilistId}`);
+    await delAsync(`epv:match5:${p}:${anilistId}`);
   }
   if (media?.idMal) {
     await delAsync(`jm:${media.idMal}`);
@@ -190,7 +196,7 @@ function scheduleRefresh(anilistId, entry, env) {
 
     const result = await buildResponse(anilistId, media, anizip, true);
     const latestEpisode = latestEpisodeFromResponse(result);
-    await setAsync(`episodes:match5:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
+    await setAsync(`episodes:match6:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
     writeSyncState(anilistId, {
       lastProbeAt: Date.now(),
       lastSyncAt: Date.now(),
@@ -215,7 +221,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match5:${anilistId}`;
+  const cacheKey = `episodes:match6:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

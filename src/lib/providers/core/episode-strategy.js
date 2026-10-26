@@ -15,6 +15,7 @@ import { getEpisodes as animedunyaEpisodes } from "../providers/animedunya.js";
 import { getEpisodes as animeonsenEpisodes } from "../providers/animeonsen.js";
 import { getEpisodes as anipmEpisodes } from "../providers/anipm.js";
 import { getEpisodes as luciferdonghuaEpisodes } from "../providers/luciferdonghua.js";
+import { getEpisodes as donghuastreamEpisodes } from "../providers/donghuastream.js";
 const inflight  = new Map();
 const bgRunning = new Set();
 
@@ -75,9 +76,12 @@ async function safe(label, fn) {
 }
 
 const PROVIDER_ALIASES = {
-  luciferdonghua: "luciferdonghua",
-  lucifer: "luciferdonghua",
-  ld: "luciferdonghua",
+  donghuastream: "donghuastream",
+  donghua: "donghuastream",
+  ds: "donghuastream",
+  luciferdonghua: "donghuastream",
+  lucifer: "donghuastream",
+  ld: "donghuastream",
   mkissa: "mkissa",
   reanime:  "reanime",
   anikoto:  "anikoto",
@@ -105,7 +109,8 @@ export function resolveProviders(rawNames) {
 
 function providerFns(anilistId, status, ctx) {
   return {
-    luciferdonghua: () => withCache(`epv:match2:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx)),
+    donghuastream: () => withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
+    luciferdonghua: () => withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx)),
     mkissa: () => withCache(`epv:match2:mkissa:${anilistId}`, status, () => mkissaEpisodes(anilistId, ctx)),
     reanime:  () => withCache(`epv:match2:reanime:${anilistId}`, status, () => reanimeEpisodes(anilistId, ctx)),
     anikoto:  () => withCache(`epv:match2:anikoto:${anilistId}`, status, () => anikotoEpisodes(anilistId, ctx)),
@@ -134,14 +139,16 @@ export async function buildFilteredEpisodesWithCache(anilistId, providers, media
   const status = media?.status ?? "RELEASING";
   const ctx  = { media, anizip, maxPages: undefined };
 
-  // DONGHUA: For Chinese anime, strictly use only luciferdonghua
+  // DONGHUA: For Chinese anime, strictly use only donghuastream
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
-    const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match4:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+    const ds = await safe("donghuastream", () =>
+      withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
     );
+    const data = ds.ok ? ds.data : { error: ds.error, stack: ds.stack };
     return {
-      luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },
+      donghuastream: data,
+      luciferdonghua: data,
     };
   }
 
@@ -161,14 +168,16 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const status = media?.status ?? "RELEASING";
   const ctx = { media, anizip, maxPages: undefined };
 
-  // DONGHUA: For Chinese anime, strictly use only luciferdonghua
+  // DONGHUA: For Chinese anime, strictly use only donghuastream
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
-    const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match4:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+    const ds = await safe("donghuastream", () =>
+      withCache(`epv:match5:donghuastream:${anilistId}`, status, () => donghuastreamEpisodes(anilistId, ctx))
     );
+    const data = ds.ok ? ds.data : { error: ds.error, stack: ds.stack };
     return {
-      luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },
+      donghuastream: data,
+      luciferdonghua: data,
     };
   }
 

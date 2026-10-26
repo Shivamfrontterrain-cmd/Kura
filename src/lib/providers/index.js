@@ -13,6 +13,7 @@ import animedunyaHandler           from "./providers/animedunya.js";
 import animeonsenHandler           from "./providers/animeonsen.js";
 import anipmHandler                from "./providers/anipm.js";
 import luciferdonghuaHandler       from "./providers/luciferdonghua.js";
+import donghuastreamHandler        from "./providers/donghuastream.js";
 import { getEpisodesResponse, getFilteredEpisodesResponse } from "./core/episode-cache.js";
 import { resolveProviders }         from "./core/episode-strategy.js";
 import { getAsync, setAsync, isFresh, mapTTL, WATCH_TTL, _CACHE_ENABLED } from "./core/smartcache.js";
@@ -257,12 +258,12 @@ export default {
       }
     }
 
-    m = path.match(/^\/watch\/luciferdonghua\/(\d+)\/(sub|dub)\/luciferdonghua-(\d+)\/?$/);
+    m = path.match(/^\/watch\/(donghuastream|luciferdonghua)\/(\d+)\/(sub|dub)\/(?:donghuastream|luciferdonghua)-(\d+)\/?$/);
     if (m) {
-      const [, id, audio, ep] = m;
+      const [, pName, id, audio, ep] = m;
       return cachedWatch(
-        `watch:luciferdonghua:${id}:${audio}:${ep}`,
-        () => luciferdonghuaHandler.fetch(request)
+        `watch:${pName}:${id}:${audio}:${ep}`,
+        () => donghuastreamHandler.fetch(request)
       );
     }
 
@@ -387,12 +388,12 @@ export default {
       );
     }
 
-    m = path.match(/^\/watch\/luciferdonghua\/(\d+)\/(sub|dub)\/luciferdonghua-(\d+)\/?$/);
+    m = path.match(/^\/watch\/(donghuastream|luciferdonghua)\/(\d+)\/(sub|dub)\/(?:donghuastream|luciferdonghua)-(\d+)\/?$/);
     if (m) {
-      const [, id, audio, ep] = m;
+      const [, pName, id, audio, ep] = m;
       return cachedWatch(
-        `watch:luciferdonghua:${id}:${audio}:${ep}`,
-        () => luciferdonghuaHandler.fetch(request),
+        `watch:${pName}:${id}:${audio}:${ep}`,
+        () => donghuastreamHandler.fetch(request),
         WATCH_TTL
       );
     }
@@ -403,6 +404,7 @@ export default {
       name: `Kitsune Provider API ${env?.API_VERSION ?? "unknown"}`,
       cache: _CACHE_ENABLED,
       providers: [
+        "donghuastream",
         "luciferdonghua",
         "mkissa",
         "reanime",
