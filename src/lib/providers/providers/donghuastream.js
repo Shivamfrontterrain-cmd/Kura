@@ -73,6 +73,24 @@ function generateSearchQueries(media) {
   return Array.from(queries);
 }
 
+export const KNOWN_SERIES_MAP = {
+  166219: `${BASE}/anime/swallowed-star-season-4th/`, // Swallowed Star Season 4
+  196613: `${BASE}/anime/battle-through-the-heavens-season-5th/`, // Battle Through the Heavens Season 5
+  150073: `${BASE}/anime/a-will-eternal-season-2nd/`, // A Will Eternal Season 2
+  131518: `${BASE}/anime/soul-land/`, // Soul Land
+  156360: `${BASE}/anime/soul-land-season-2nd/`, // Soul Land 2 (Peerless Tang Clan)
+  132405: `${BASE}/anime/perfect-world/`, // Perfect World
+  152636: `${BASE}/anime/renegade-immortal/`, // Renegade Immortal
+  163263: `${BASE}/anime/a-record-of-a-mortals-journey-to-immortality-season-3rd/`, // RMJI Season 3
+  153070: `${BASE}/anime/shrouding-the-heavens/`, // Shrouding the Heavens
+  160533: `${BASE}/anime/against-the-gods/`, // Against the Gods
+  163273: `${BASE}/anime/the-great-ruler/`, // The Great Ruler
+  150337: `${BASE}/anime/stellar-transformation-season-5th/`, // Stellar Transformation 5
+  150336: `${BASE}/anime/jade-dynasty/`, // Jade Dynasty
+  163262: `${BASE}/anime/martial-universe-season-4th/`, // Martial Universe 4
+  143588: `${BASE}/anime/throne-of-seal/`, // Throne of Seal
+};
+
 /**
  * Searches DonghuaStream for an anime title and returns the series URL
  */
@@ -80,6 +98,13 @@ export async function findSeriesUrl(anilistId, media) {
   const cacheKey = `ds:series:${anilistId}`;
   const cached = cacheGet(cacheKey);
   if (cached && cached.data) return cached.data;
+
+  // Check known canonical series mapping first for instantaneous, 100% reliable resolution
+  const knownUrl = KNOWN_SERIES_MAP[Number(anilistId)];
+  if (knownUrl) {
+    cacheSet(cacheKey, knownUrl, SHOW_IDENTITY_TTL);
+    return knownUrl;
+  }
 
   const isMovie = media?.format === "MOVIE";
   const primaryTitle = media?.title?.english || media?.title?.romaji || "";

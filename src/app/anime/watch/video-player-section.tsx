@@ -52,16 +52,25 @@ const VideoPlayerSection = () => {
 
   // Match episode number from ?ep= parameter if present
   const targetEpByNumber =
-    epParam && allEpisodesData?.episodes
-      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam))
+    epParam && allEpisodesData?.episodes?.length
+      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam)) ||
+        (Number(epParam) > allEpisodesData.episodes[allEpisodesData.episodes.length - 1].number
+          ? allEpisodesData.episodes[allEpisodesData.episodes.length - 1]
+          : null)
       : null;
 
-  // Resolve active episode ID prioritizing selectedEpisode or ?ep= parameter
+  // Resolve active episode ID prioritizing a valid watch/ slug, targetEpByNumber, or first episode
+  const isSelectedEpValid =
+    Boolean(selectedEpisode) &&
+    (selectedEpisode.includes("watch/") ||
+      Boolean(allEpisodesData?.episodes?.some((e) => e.episodeId === selectedEpisode)));
+
   const activeEpisodeId =
-    selectedEpisode ||
+    (isSelectedEpValid ? selectedEpisode : null) ||
     targetEpByNumber?.episodeId ||
-    episodeIdParam ||
+    (episodeIdParam && episodeIdParam.includes("watch/") ? episodeIdParam : null) ||
     allEpisodesData?.episodes?.[0]?.episodeId ||
+    selectedEpisode ||
     "";
 
   // Sync selectedEpisode in store when ?ep= parameter changes

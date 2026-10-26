@@ -221,7 +221,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match8:${anilistId}`;
+  const cacheKey = `episodes:match9:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {
