@@ -1,28 +1,42 @@
 #!/bin/bash
 set -e
 
-PB_URL="http://127.0.0.1:8090"
 ADMIN_EMAIL="${1:-admin@kura.com}"
 ADMIN_PASS="${2:-MyPassword1234}"
 
+# Determine accessible PocketBase URL
+CANDIDATE_URLS=("http://127.0.0.1:8090" "http://localhost:8090" "https://kuraanime.duckdns.org")
+AUTH_ENDPOINTS=("/api/collections/_superusers/auth-with-password" "/api/admins/auth-with-password" "/api/superusers/auth-with-password")
+
+TOKEN=""
+FOUND_URL=""
+
 echo "1. Authenticating as superuser ($ADMIN_EMAIL)..."
-# Try superusers endpoint (v0.23+) first, fallback to admins (v0.22)
-AUTH_RESP=$(curl -s -X POST "$PB_URL/api/superusers/auth-with-password" \
-  -H "Content-Type: application/json" \
-  -d "{\"identity\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}")
 
-TOKEN=$(echo "$AUTH_RESP" | grep -o '"token":"[^"]*' | cut -d'"' -f4)
+for URL in "${CANDIDATE_URLS[@]}"; do
+  for EP in "${AUTH_ENDPOINTS[@]}"; do
+    AUTH_RESP=$(curl -s -k -X POST "$URL$EP" \
+      -H "Content-Type: application/json" \
+      -d "{\"identity\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}" || true)
+
+    T=$(echo "$AUTH_RESP" | grep -o '"token":"[^"]*' | cut -d'"' -f4 || true)
+    if [ -n "$T" ]; then
+      TOKEN="$T"
+      FOUND_URL="$URL"
+      echo "   ✓ Authenticated via $URL$EP"
+      break 2
+    fi
+  done
+done
 
 if [ -z "$TOKEN" ]; then
-  AUTH_RESP=$(curl -s -X POST "$PB_URL/api/admins/auth-with-password" \
-    -H "Content-Type: application/json" \
-    -d "{\"identity\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASS\"}")
-  TOKEN=$(echo "$AUTH_RESP" | grep -o '"token":"[^"]*' | cut -d'"' -f4)
-fi
-
-if [ -z "$TOKEN" ]; then
-  echo "❌ Failed to obtain auth token. Response was:"
+  echo "❌ Failed to obtain auth token. Last response was:"
   echo "$AUTH_RESP"
+  echo ""
+  echo "💡 Tip: You can also import collections in 10 seconds via the web UI:"
+  echo "   1. Open https://kuraanime.duckdns.org/_/"
+  echo "   2. Click 'Settings' (gear icon) in the top bar -> 'Import collections'"
+  echo "   3. Click 'Load from JSON file' and choose docs/pb.json (or paste its content), then click Review and Confirm!"
   exit 1
 fi
 
@@ -35,7 +49,6 @@ if [ ! -f "$PB_JSON_FILE" ]; then
   exit 1
 fi
 
-# Wrap collections in JSON payload expected by PocketBase: {"collections": [...], "deleteMissing": false}
 PAYLOAD=$(python3 -c "
 import json
 with open('$PB_JSON_FILE') as f:
@@ -47,7 +60,7 @@ const cols = JSON.parse(fs.readFileSync('$PB_JSON_FILE', 'utf8'));
 console.log(JSON.stringify({ collections: cols, deleteMissing: false }));
 ")
 
-IMPORT_RESP=$(curl -s -w "\n%{http_code}" -X PUT "$PB_URL/api/collections/import" \
+IMPORT_RESP=$(curl -s -k -w "\n%{http_code}" -X PUT "$FOUND_URL/api/collections/import" \
   -H "Authorization: $TOKEN" \
   -H "Content-Type: application/json" \
   -d "$PAYLOAD")
