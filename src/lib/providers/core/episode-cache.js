@@ -39,11 +39,12 @@ function latestEpisodeFromResponse(data) {
 
 function hasCurrentProviders(data) {
   return data &&
-    Object.prototype.hasOwnProperty.call(data, "anizone") &&
+    (Object.prototype.hasOwnProperty.call(data, "luciferdonghua") ||
+    (Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
     Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
     Object.prototype.hasOwnProperty.call(data, "anipm") &&
-    !Object.prototype.hasOwnProperty.call(data, "anihq");
+    !Object.prototype.hasOwnProperty.call(data, "anihq")));
 }
 
 function latestEpisodeFromAniZip(anizip) {
@@ -60,7 +61,7 @@ function resolveShared(anilistId, freshMedia = false) {
 }
 
 async function clearProviderCache(anilistId, media) {
-  for (const p of ["pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
+  for (const p of ["luciferdonghua", "pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
     await delAsync(`epv:${p}:${anilistId}`);
     if (p === "reanime" || p === "anikoto") {
       await delAsync(`epv:${p}:v2:${anilistId}`);

@@ -10,6 +10,7 @@ export async function GET() {
       mode: "server",
       version: "2.3.0",
       providers: [
+        "luciferdonghua",
         "mkissa",
         "reanime",
         "anikoto",

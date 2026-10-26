@@ -12,6 +12,7 @@ import kaaHandler                  from "./providers/kickassanime.js";
 import animedunyaHandler           from "./providers/animedunya.js";
 import animeonsenHandler           from "./providers/animeonsen.js";
 import anipmHandler                from "./providers/anipm.js";
+import luciferdonghuaHandler       from "./providers/luciferdonghua.js";
 import { getEpisodesResponse, getFilteredEpisodesResponse } from "./core/episode-cache.js";
 import { resolveProviders }         from "./core/episode-strategy.js";
 import { getAsync, setAsync, isFresh, mapTTL, WATCH_TTL, _CACHE_ENABLED } from "./core/smartcache.js";
@@ -254,6 +255,15 @@ export default {
       } catch (e) {
         return json({ error: e.message }, 500);
       }
+    }
+
+    m = path.match(/^\/watch\/luciferdonghua\/(\d+)\/(sub|dub)\/luciferdonghua-(\d+)\/?$/);
+    if (m) {
+      const [, id, audio, ep] = m;
+      return cachedWatch(
+        `watch:luciferdonghua:${id}:${audio}:${ep}`,
+        () => luciferdonghuaHandler.fetch(request)
+      );
     }
 
     m = path.match(/^\/watch\/mkissa\/(\d+)\/(sub|dub)\/mkissa-(\d+)\/?$/);
