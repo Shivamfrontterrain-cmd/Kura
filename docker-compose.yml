@@ -1,22 +1,36 @@
 services:
-  kitsune:
+  kura:
     build:
       context: .
       dockerfile: Dockerfile
-    image: kitsune:latest
-    container_name: kitsune
+      args:
+        NEXT_PUBLIC_POCKETBASE_URL: ${NEXT_PUBLIC_POCKETBASE_URL:-http://localhost:8090}
+    image: kura:latest
+    container_name: kura
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "80:3000"
     environment:
-      - NEXT_PUBLIC_POCKETBASE_URL=http://localhost:8090
+      - NEXT_PUBLIC_POCKETBASE_URL=${NEXT_PUBLIC_POCKETBASE_URL:-http://localhost:8090}
       - REDIS_URL=redis://redis:6379
+      - NODE_ENV=production
+      - PORT=3000
     depends_on:
       - redis
+      - pocketbase
+
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: kura-pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      - pb_data:/pb_data
 
   redis:
     image: redis:8-alpine
-    container_name: kitsune-redis
+    container_name: kura-redis
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --appendonly no
     ports:
@@ -25,4 +39,5 @@ services:
       - redis_data:/data
 
 volumes:
+  pb_data:
   redis_data:
