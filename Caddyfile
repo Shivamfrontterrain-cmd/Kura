@@ -1,0 +1,7 @@
+kuraanime.duckdns.org {
+    reverse_proxy kura:3000
+}
+
+kuraanime-pb.duckdns.org {
+    reverse_proxy pocketbase:8090
+}

@@ -1,17 +1,31 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: kura-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - kura
+      - pocketbase
+
   kura:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_POCKETBASE_URL: ${NEXT_PUBLIC_POCKETBASE_URL:-http://localhost:8090}
+        NEXT_PUBLIC_POCKETBASE_URL: https://kuraanime-pb.duckdns.org
     image: kura:latest
     container_name: kura
     restart: unless-stopped
-    ports:
-      - "80:3000"
     environment:
-      - NEXT_PUBLIC_POCKETBASE_URL=${NEXT_PUBLIC_POCKETBASE_URL:-http://localhost:8090}
+      - NEXT_PUBLIC_POCKETBASE_URL=https://kuraanime-pb.duckdns.org
       - REDIS_URL=redis://redis:6379
       - NODE_ENV=production
       - PORT=3000
@@ -23,8 +37,6 @@ services:
     image: ghcr.io/muchobien/pocketbase:latest
     container_name: kura-pocketbase
     restart: unless-stopped
-    ports:
-      - "8090:8090"
     volumes:
       - pb_data:/pb_data
 
@@ -33,11 +45,11 @@ services:
     container_name: kura-redis
     restart: unless-stopped
     command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --save "" --appendonly no
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
 
 volumes:
+  caddy_data:
+  caddy_config:
   pb_data:
   redis_data:
