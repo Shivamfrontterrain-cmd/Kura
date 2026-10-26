@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { IAnimeSearch, SearchAnimeParams } from "@/types/anime";
 import { MediaList, PaginatedResponse } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 const searchAnime = async (params: SearchAnimeParams): Promise<IAnimeSearch> => {
   const cleanQuery = params.q ? params.q.replace(/^"+|"+$/g, "").trim() : "";
@@ -29,17 +30,24 @@ const searchAnime = async (params: SearchAnimeParams): Promise<IAnimeSearch> => 
   const totalPages = Math.min(calculatedPages, 20);
 
   return {
-    animes: results.map((m) => ({
-      id: String(m.id),
-      name: m.title?.english || m.title?.romaji || m.title?.native || "Untitled",
-      jname: m.title?.native || m.title?.romaji || "",
-      poster: m.coverImage?.extraLarge || m.coverImage?.large || "",
-      episodes: {
-        sub: m.episodes || 0,
-        dub: m.episodes || 0,
-      },
-      type: m.format as any,
-    })),
+    animes: results.map((m) => {
+      const isDonghua = isKnownDonghua(m.id, m);
+      const name = isDonghua
+        ? getDonghuaEnglishTitle(m)
+        : (m.title?.english || m.title?.romaji || m.title?.native || "Untitled");
+
+      return {
+        id: String(m.id),
+        name,
+        jname: m.title?.native || m.title?.romaji || "",
+        poster: m.coverImage?.extraLarge || m.coverImage?.large || "",
+        episodes: {
+          sub: m.episodes || 0,
+          dub: m.episodes || 0,
+        },
+        type: m.format as any,
+      };
+    }),
     totalPages: totalPages > 0 ? totalPages : 1,
     hasNextPage: data.hasNextPage,
     currentPage: data.page,

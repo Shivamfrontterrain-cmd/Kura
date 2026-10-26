@@ -30,6 +30,7 @@ import Loading from "@/app/loading";
 import { useAuthStore } from "@/store/auth-store";
 import { toast } from "sonner";
 import useBookMarks from "@/hooks/use-get-bookmark";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 const SelectOptions: ISelectOptions[] = [
   {
@@ -106,16 +107,23 @@ const Page = () => {
     }
   };
 
-  return isLoading || !anime ? (
-    <Loading />
-  ) : (
+  if (isLoading || !anime) {
+    return <Loading />;
+  }
+
+  const isDonghua = isKnownDonghua(slug as string, anime.anime.info);
+  const displayName = isDonghua
+    ? getDonghuaEnglishTitle(anime.anime.info || slug) || anime.anime.info.name
+    : anime.anime.info.name;
+
+  return (
     <div className="w-full z-50">
       <div className="h-[30vh] md:h-[40vh] w-full relative ">
         <Image
           src={
             anime.anime.info.bannerImage || anime.anime.info.poster
           }
-          alt={anime.anime.info.name}
+          alt={displayName}
           height={100}
           width={100}
           className="h-full w-full object-cover"
@@ -130,7 +138,7 @@ const Page = () => {
       <Container className="z-50 md:space-y-10 pb-20">
         <div className="flex md:mt-[-9.375rem] mt-[-6.25rem] md:flex-row flex-col md:items-end md:gap-20 gap-10 ">
           <AnimeCard
-            title={anime.anime.info.name}
+            title={displayName}
             poster={anime.anime.info.poster}
             href={`${ROUTES.ANIME_DETAILS}/${anime.anime.info.id}`}
             displayDetails={false}
@@ -139,7 +147,7 @@ const Page = () => {
           />
           <div className="flex flex-col md:gap-5 gap-2 pb-16">
             <h1 className="md:text-5xl text-2xl md:font-black font-extrabold z-[9]">
-              {anime.anime.info.name}
+              {displayName}
             </h1>
             <div className="flex items-center gap-5">
               <WatchButton />

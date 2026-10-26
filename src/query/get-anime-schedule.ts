@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { IAnimeSchedule } from "@/types/anime-schedule";
 import { ScheduleItem, PaginatedResponse } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 const getAnimeSchedule = async (date?: string): Promise<IAnimeSchedule> => {
   const res = await api.get<PaginatedResponse<ScheduleItem>>("/schedule", {
@@ -15,9 +16,14 @@ const getAnimeSchedule = async (date?: string): Promise<IAnimeSchedule> => {
     const minutes = Math.floor(((item.timeUntilAiring || 0) % 3600) / 60);
     const timeString = item.timeUntilAiring > 0 ? `in ${hours}h ${minutes}m` : "Airing soon";
 
+    const isDonghua = isKnownDonghua(item.id, item);
+    const name = isDonghua
+      ? getDonghuaEnglishTitle(item)
+      : (item.title?.english || item.title?.romaji || item.title?.native || "Untitled");
+
     return {
       id: String(item.id),
-      name: item.title?.english || item.title?.romaji || item.title?.native || "Untitled",
+      name,
       jname: item.title?.native || item.title?.romaji || "",
       poster: item.coverImage?.extraLarge || item.coverImage?.large || "",
       time: timeString,

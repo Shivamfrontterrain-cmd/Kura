@@ -3,12 +3,16 @@ import { api } from "@/lib/api";
 import { IAnimeDetails } from "@/types/anime-details";
 import { MediaFull } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
   const res = await api.get<MediaFull>(`/info/${animeId}`);
   const media = res.data;
 
-  const title = media.title?.english || media.title?.romaji || media.title?.native || "Untitled";
+  const isDonghua = isKnownDonghua(animeId || media.id, media);
+  const title = isDonghua
+    ? getDonghuaEnglishTitle(media)
+    : (media.title?.english || media.title?.romaji || media.title?.native || "Untitled");
   const poster = media.coverImage?.extraLarge || media.coverImage?.large || "";
 
   const charactersVoiceActors = (media.characters?.edges || [])
@@ -30,21 +34,31 @@ const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
 
   const seasons = (media.relations?.edges || [])
     .filter((edge) => edge && edge.node && edge.node.id)
-    .map((edge) => ({
-      id: String(edge.node.id),
-      name: edge.node.title?.english || edge.node.title?.romaji || "Related Anime",
-      title: edge.relationType || "Relation",
-      poster: edge.node.coverImage?.large || edge.node.coverImage?.extraLarge || "",
-      isCurrent: edge.node.id === media.id,
-    }));
+    .map((edge) => {
+      const isRelDonghua = isDonghua || isKnownDonghua(edge.node.id, edge.node);
+      const relName = isRelDonghua
+        ? getDonghuaEnglishTitle(edge.node)
+        : (edge.node.title?.english || edge.node.title?.romaji || "Related Anime");
+      return {
+        id: String(edge.node.id),
+        name: relName,
+        title: edge.relationType || "Relation",
+        poster: edge.node.coverImage?.large || edge.node.coverImage?.extraLarge || "",
+        isCurrent: edge.node.id === media.id,
+      };
+    });
 
   const recommendedAnimes = (media.recommendations?.nodes || [])
     .filter((rec) => rec && rec.mediaRecommendation && rec.mediaRecommendation.id)
     .map((rec) => {
       const rMedia = rec.mediaRecommendation;
+      const isRecDonghua = isDonghua || isKnownDonghua(rMedia.id, rMedia);
+      const recName = isRecDonghua
+        ? getDonghuaEnglishTitle(rMedia)
+        : (rMedia.title?.english || rMedia.title?.romaji || "Untitled");
       return {
         id: String(rMedia.id),
-        name: rMedia.title?.english || rMedia.title?.romaji || "Untitled",
+        name: recName,
         jname: rMedia.title?.native || rMedia.title?.romaji || "",
         poster: rMedia.coverImage?.extraLarge || rMedia.coverImage?.large || "",
         duration: `${rMedia.episodes || 0} eps`,
@@ -66,9 +80,13 @@ const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
     .filter((edge) => edge && edge.node && edge.node.id)
     .map((edge) => {
       const rNode = edge.node;
+      const isRelDonghua = isDonghua || isKnownDonghua(rNode.id, rNode);
+      const relName = isRelDonghua
+        ? getDonghuaEnglishTitle(rNode)
+        : (rNode.title?.english || rNode.title?.romaji || "Untitled");
       return {
         id: String(rNode.id),
-        name: rNode.title?.english || rNode.title?.romaji || "Untitled",
+        name: relName,
         jname: rNode.title?.native || rNode.title?.romaji || "",
         poster: rNode.coverImage?.extraLarge || rNode.coverImage?.large || "",
         duration: `${rNode.episodes || 0} eps`,

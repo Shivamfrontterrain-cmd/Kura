@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { redisGet, redisSet } from "@/lib/redis";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 import {
   EpisodeResponse,
   MediaFull,
@@ -61,6 +62,7 @@ const MEDIA_LIST_FRAGMENT = `
     source
     countryOfOrigin
     isAdult
+    synonyms
     studios(isMain: true) {
       nodes {
         id
@@ -93,7 +95,7 @@ export async function anilistQuery<T = any>(
   ttlMs = DEFAULT_TTL_MS,
 ): Promise<T> {
   const rawKey = JSON.stringify({ query: query.trim(), variables });
-  const redisKey = `anilist:v2:${createHash("sha1").update(rawKey).digest("hex")}`;
+  const redisKey = `anilist:v3:${createHash("sha1").update(rawKey).digest("hex")}`;
   const now = Date.now();
 
   const isValidPayload = (d: any): boolean => {
@@ -170,11 +172,22 @@ export async function anilistQuery<T = any>(
 }
 
 export function normalizeMediaList(raw: any): MediaList {
+  let romaji = raw?.title?.romaji || raw?.title?.english || "Untitled";
+  let english = raw?.title?.english || null;
+
+  if (isKnownDonghua(raw?.id, raw)) {
+    const enDonghua = getDonghuaEnglishTitle(raw);
+    if (enDonghua) {
+      english = enDonghua;
+      romaji = enDonghua;
+    }
+  }
+
   return {
     id: Number(raw?.id) || 0,
     title: {
-      romaji: raw?.title?.romaji || raw?.title?.english || "Untitled",
-      english: raw?.title?.english || null,
+      romaji,
+      english,
       native: raw?.title?.native || null,
     },
     coverImage: {
@@ -566,11 +579,48 @@ export async function fetchAnimeInfo(id: number): Promise<MediaFull | null> {
     characters: { edges: raw.characters?.edges || [] },
     staff: { edges: raw.staff?.edges || [] },
     relations: {
-      edges: (raw.relations?.edges || []).filter(
-        (e: any) => !e?.node?.type || e.node.type === "ANIME",
-      ),
+      edges: (raw.relations?.edges || [])
+        .filter((e: any) => !e?.node?.type || e.node.type === "ANIME")
+        .map((e: any) => {
+          if (!e?.node) return e;
+          if (isKnownDonghua(e.node.id, e.node) || isKnownDonghua(raw.id, raw)) {
+            const enTitle = getDonghuaEnglishTitle(e.node);
+            return {
+              ...e,
+              node: {
+                ...e.node,
+                title: {
+                  ...e.node.title,
+                  english: enTitle || e.node.title?.english || null,
+                  romaji: enTitle || e.node.title?.romaji || "Untitled",
+                },
+              },
+            };
+          }
+          return e;
+        }),
     },
-    recommendations: { nodes: raw.recommendations?.nodes || [] },
+    recommendations: {
+      nodes: (raw.recommendations?.nodes || []).map((n: any) => {
+        const rMedia = n?.mediaRecommendation;
+        if (!rMedia) return n;
+        if (isKnownDonghua(rMedia.id, rMedia)) {
+          const enTitle = getDonghuaEnglishTitle(rMedia);
+          return {
+            ...n,
+            mediaRecommendation: {
+              ...rMedia,
+              title: {
+                ...rMedia.title,
+                english: enTitle || rMedia.title?.english || null,
+                romaji: enTitle || rMedia.title?.romaji || "Untitled",
+              },
+            },
+          };
+        }
+        return n;
+      }),
+    },
     externalLinks: raw.externalLinks || [],
     streamingEpisodes: raw.streamingEpisodes || [],
     stats: raw.stats || { scoreDistribution: [], statusDistribution: [] },

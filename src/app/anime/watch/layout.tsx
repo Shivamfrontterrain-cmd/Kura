@@ -26,7 +26,7 @@ import useBookMarks from "@/hooks/use-get-bookmark";
 import { toast } from "sonner";
 import { useGetAllEpisodes } from "@/query/get-all-episodes";
 import CommentsSection from "@/components/comments/comments-section";
-import { isKnownDonghua } from "@/constants/donghua";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 type Props = {
   children: ReactNode;
@@ -175,6 +175,10 @@ const Layout = (props: Props) => {
 
   if (isLoading) return <Loading />;
 
+  const displayName = isDonghua
+    ? getDonghuaEnglishTitle(anime?.anime?.info || animeId) || anime?.anime?.info?.name || "Donghua"
+    : (anime?.anime?.info?.name || (anime?.anime?.moreInfo?.japanese as string) || "Anime");
+
   return (
     anime?.anime.info && (
       <Container className="mt-[6.5rem] space-y-10 pb-20">
@@ -185,11 +189,7 @@ const Layout = (props: Props) => {
           {episodes && (
             <EpisodePlaylist
               animeId={animeId as string}
-              title={
-                !!anime?.anime.info.name
-                  ? anime.anime.info.name
-                  : (anime?.anime.moreInfo.japanese as string)
-              }
+              title={displayName}
               subOrDub={anime?.anime.info.stats.episodes}
               episodes={episodes}
               isLoading={episodeLoading}
@@ -199,7 +199,7 @@ const Layout = (props: Props) => {
         </div>
         <div className="flex md:flex-row flex-col gap-5 -mt-5">
           <AnimeCard
-            title={anime?.anime.info.name}
+            title={displayName}
             poster={anime?.anime.info.poster}
             subTitle={anime?.anime.moreInfo.aired}
             displayDetails={false}
@@ -214,7 +214,7 @@ const Layout = (props: Props) => {
               onChange={handleSelect}
             />
             <h1 className="text-2xl md:font-black font-extrabold z-[100]">
-              {anime?.anime.info.name}
+              {displayName}
             </h1>
             <p>{parse(anime?.anime.info.description as string)}</p>
           </div>
@@ -223,7 +223,7 @@ const Layout = (props: Props) => {
         {/* Community Comments Section */}
         <CommentsSection
           animeId={animeId as string}
-          animeTitle={anime?.anime.info.name || "Anime"}
+          animeTitle={displayName}
           episodeNumber={currentEpNum}
         />
 

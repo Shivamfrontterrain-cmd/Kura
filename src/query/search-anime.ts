@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { ISuggestionAnime } from "@/types/anime";
 import { SearchSuggestionsResponse } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
+import { getDonghuaEnglishTitle, isKnownDonghua } from "@/constants/donghua";
 
 const searchAnime = async (q: string): Promise<ISuggestionAnime[]> => {
   if (!q) return [];
@@ -11,22 +12,29 @@ const searchAnime = async (q: string): Promise<ISuggestionAnime[]> => {
   });
 
   const suggestions = res.data.suggestions || [];
-  return suggestions.map((item) => ({
-    id: String(item.id),
-    name: item.title || item.title_romaji || "Untitled",
-    jname: item.title_romaji || "",
-    poster: item.poster || "",
-    episodes: {
-      sub: item.episodes || 0,
-      dub: item.episodes || 0,
-    },
-    type: item.format as any,
-    moreInfo: [
-      item.year ? String(item.year) : "",
-      item.format || "",
-      item.status || "",
-    ].filter(Boolean),
-  }));
+  return suggestions.map((item) => {
+    const isDonghua = isKnownDonghua(item.id, item);
+    const name = isDonghua
+      ? getDonghuaEnglishTitle(item)
+      : (item.title || item.title_romaji || "Untitled");
+
+    return {
+      id: String(item.id),
+      name,
+      jname: item.title_romaji || "",
+      poster: item.poster || "",
+      episodes: {
+        sub: item.episodes || 0,
+        dub: item.episodes || 0,
+      },
+      type: item.format as any,
+      moreInfo: [
+        item.year ? String(item.year) : "",
+        item.format || "",
+        item.status || "",
+      ].filter(Boolean),
+    };
+  });
 };
 
 export const useSearchAnime = (query: string) => {
