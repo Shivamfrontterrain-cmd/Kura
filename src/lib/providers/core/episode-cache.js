@@ -38,12 +38,17 @@ function latestEpisodeFromResponse(data) {
 }
 
 function hasCurrentProviders(data) {
-  return data &&
+  if (!data) return false;
+  if (Object.prototype.hasOwnProperty.call(data, "donghuaworld") && !data.donghuaworld?.error) {
+    return true;
+  }
+  return (
     Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
     Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
     Object.prototype.hasOwnProperty.call(data, "anipm") &&
-    !Object.prototype.hasOwnProperty.call(data, "anihq");
+    !Object.prototype.hasOwnProperty.call(data, "anihq")
+  );
 }
 
 function latestEpisodeFromAniZip(anizip) {
@@ -199,7 +204,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match3:${anilistId}`;
+  const cacheKey = `episodes:match10:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

@@ -14,6 +14,7 @@ import { getEpisodes as kaaEpisodes    } from "../providers/kickassanime.js";
 import { getEpisodes as animedunyaEpisodes } from "../providers/animedunya.js";
 import { getEpisodes as animeonsenEpisodes } from "../providers/animeonsen.js";
 import { getEpisodes as anipmEpisodes } from "../providers/anipm.js";
+import { getEpisodes as donghuaworldEpisodes } from "../providers/donghuaworld.js";
 const inflight  = new Map();
 const bgRunning = new Set();
 
@@ -74,6 +75,9 @@ async function safe(label, fn) {
 }
 
 const PROVIDER_ALIASES = {
+  donghuaworld: "donghuaworld",
+  donghua: "donghuaworld",
+  dhw: "donghuaworld",
   mkissa: "mkissa",
   reanime:  "reanime",
   anikoto:  "anikoto",
@@ -101,6 +105,7 @@ export function resolveProviders(rawNames) {
 
 function providerFns(anilistId, status, ctx) {
   return {
+    donghuaworld: () => withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx)),
     mkissa: () => withCache(`epv:match2:mkissa:${anilistId}`, status, () => mkissaEpisodes(anilistId, ctx)),
     reanime:  () => withCache(`epv:match2:reanime:${anilistId}`, status, () => reanimeEpisodes(anilistId, ctx)),
     anikoto:  () => withCache(`epv:match2:anikoto:${anilistId}`, status, () => anikotoEpisodes(anilistId, ctx)),
@@ -116,9 +121,31 @@ function providerFns(anilistId, status, ctx) {
   };
 }
 
+export function isDonghuaMedia(media) {
+  if (!media) return false;
+  const co = String(media.countryOfOrigin || "").toUpperCase();
+  if (co === "CN") return true;
+  if (Array.isArray(media.synonyms) && media.synonyms.some((s) => typeof s === "string" && s.toLowerCase().includes("donghua"))) return true;
+  if (Array.isArray(media.genres) && media.genres.some((g) => typeof g === "string" && g.toLowerCase() === "donghua")) return true;
+  return false;
+}
+
 export async function buildFilteredEpisodesWithCache(anilistId, providers, media, anizip) {
   const status = media?.status ?? "RELEASING";
   const ctx  = { media, anizip, maxPages: undefined };
+
+  // DONGHUA: For Chinese anime, strictly use only donghuaworld
+  const isDonghua = isDonghuaMedia(media);
+  if (isDonghua) {
+    const dhw = await safe("donghuaworld", () =>
+      withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx))
+    );
+    const data = dhw.ok ? dhw.data : { error: dhw.error, stack: dhw.stack };
+    return {
+      donghuaworld: data,
+    };
+  }
+
   const fns  = providerFns(anilistId, status, ctx);
 
   const pairs = await Promise.all(
@@ -134,6 +161,18 @@ export async function buildFilteredEpisodesWithCache(anilistId, providers, media
 export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const status = media?.status ?? "RELEASING";
   const ctx = { media, anizip, maxPages: undefined };
+
+  // DONGHUA: For Chinese anime, strictly use only donghuaworld
+  const isDonghua = isDonghuaMedia(media);
+  if (isDonghua) {
+    const dhw = await safe("donghuaworld", () =>
+      withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx))
+    );
+    const data = dhw.ok ? dhw.data : { error: dhw.error, stack: dhw.stack };
+    return {
+      donghuaworld: data,
+    };
+  }
 
   const [mkissa, reanime, anikoto, animegg, animenosub, anizone, aniwaves, senshi, kaa, animedunya, animeonsen, anipm] = await Promise.all([
     safe("mkissa",     () => withCache(`epv:match2:mkissa:${anilistId}`,     status, () => mkissaEpisodes(anilistId, ctx))),

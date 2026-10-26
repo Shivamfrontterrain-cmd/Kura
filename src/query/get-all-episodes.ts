@@ -6,6 +6,7 @@ import { EpisodeResponse, NextAiringEpisode } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
 
 const KNOWN_PROVIDERS = [
+  "donghuaworld",
   "anizone",
   "reanime",
   "anikoto",
@@ -112,6 +113,16 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
         const dubLen = data[p].episodes?.dub?.length || 0;
         if (subLen > 0 || dubLen > 0) {
           providersMap[p] = data[p];
+        }
+      }
+    }
+
+    // If donghuaworld is present (Donghua), strictly use it to avoid mixing with other sites!
+    const donghuaKey = providersMap["donghuaworld"] ? "donghuaworld" : null;
+    if (donghuaKey) {
+      for (const k of Object.keys(providersMap)) {
+        if (k !== donghuaKey) {
+          delete providersMap[k];
         }
       }
     }

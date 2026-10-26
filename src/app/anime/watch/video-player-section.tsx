@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useGetAllEpisodes } from "@/query/get-all-episodes";
+import { IEpisodeSource } from "@/types/episodes";
 import useBookMarks from "@/hooks/use-get-bookmark";
 import { useGetSourceAvailable } from "@/query/get-source-available";
 import {
@@ -48,10 +49,14 @@ const VideoPlayerSection = () => {
     detectLocalProxy().then(setLocalProxyActive);
   }, []);
 
-  // Match episode number from ?ep= parameter if present
+  // Match episode number from ?ep= parameter if present (with clamp to latest available)
   const targetEpByNumber =
-    epParam && allEpisodesData?.episodes
-      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam))
+    epParam && allEpisodesData?.episodes?.length
+      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam)) ||
+        (Number(epParam) > allEpisodesData.episodes[allEpisodesData.episodes.length - 1]?.number
+          ? allEpisodesData.episodes[allEpisodesData.episodes.length - 1]
+          : null) ||
+        allEpisodesData.episodes[0]
       : null;
 
   // Resolve active episode ID prioritizing selectedEpisode or ?ep= parameter
@@ -138,6 +143,45 @@ const VideoPlayerSection = () => {
   const activeCategory: "sub" | "dub" =
     cleanParts[3] === "dub" ? "dub" : preferredCategory;
 
+  const isDonghua = React.useMemo(() => {
+    return (
+      currentProviderName.toLowerCase() === "donghuaworld" ||
+      (anime?.anime?.info as any)?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.availableProviders || []).includes("donghuaworld")
+    );
+  }, [
+    currentProviderName,
+    (anime?.anime?.info as any)?.countryOfOrigin,
+    allEpisodesData?.rawResponse,
+    allEpisodesData?.availableProviders,
+  ]);
+
+  const [selectedDonghuaServer, setSelectedDonghuaServer] = useState<string>("");
+
+  const donghuaStreams = React.useMemo(() => {
+    return episodeData?.allStreams || episodeData?.sources || [];
+  }, [episodeData?.allStreams, episodeData?.sources]);
+
+  const currentDonghuaStream = React.useMemo(() => {
+    if (!isDonghua || !donghuaStreams.length) return null;
+    return (
+      (selectedDonghuaServer &&
+        donghuaStreams.find((s) => s.server === selectedDonghuaServer)) ||
+      donghuaStreams[0] ||
+      null
+    );
+  }, [isDonghua, donghuaStreams, selectedDonghuaServer]);
+
+  // Keep selectedDonghuaServer in sync when episode data changes
+  useEffect(() => {
+    if (isDonghua && donghuaStreams.length) {
+      if (!donghuaStreams.some((s) => s.server === selectedDonghuaServer)) {
+        setSelectedDonghuaServer(donghuaStreams[0]?.server || "");
+      }
+    }
+  }, [isDonghua, donghuaStreams, selectedDonghuaServer]);
+
   const parsedEpFromSlug = cleanParts[4]
     ? Number(cleanParts[4].split("-").pop())
     : NaN;
@@ -207,6 +251,22 @@ const VideoPlayerSection = () => {
     setSelectedEpisode,
   ]);
 
+  // Handler for Donghua server errors to switch to next server in list
+  const handleDonghuaError = React.useCallback(() => {
+    if (!isDonghua || !donghuaStreams.length) {
+      tryNextProviderOrFallback();
+      return;
+    }
+    const curIdx = donghuaStreams.findIndex(
+      (s) => (s.server || "") === (currentDonghuaStream?.server || "")
+    );
+    if (curIdx >= 0 && curIdx < donghuaStreams.length - 1) {
+      setSelectedDonghuaServer(donghuaStreams[curIdx + 1].server || "");
+    } else {
+      setUseFallback(true);
+    }
+  }, [isDonghua, donghuaStreams, currentDonghuaStream, tryNextProviderOrFallback]);
+
   // Auto-advance if non-loading episodeData returned 0 playable sources
   useEffect(() => {
     if (
@@ -216,6 +276,7 @@ const VideoPlayerSection = () => {
       episodeData &&
       (!episodeData.sources || episodeData.sources.length === 0)
     ) {
+      if (isDonghua && donghuaStreams.length) return;
       tryNextProviderOrFallback();
     }
   }, [
@@ -223,13 +284,17 @@ const VideoPlayerSection = () => {
     isLoadingData,
     activeEpisodeId,
     episodeData,
+    isDonghua,
+    donghuaStreams.length,
     tryNextProviderOrFallback,
   ]);
+
+  const hasDonghuaStream = Boolean(isDonghua && donghuaStreams.length > 0);
 
   const isFallbackActive =
     useFallback ||
     !activeEpisodeId.includes("watch/") ||
-    (!isLoadingData && (!episodeData || !episodeData.sources?.length));
+    (!isLoadingData && !hasDonghuaStream && (!episodeData || !episodeData.sources?.length));
 
   // Listen to postMessage events from Fallback Player iframe (megaplay.buzz)
   useEffect(() => {
@@ -372,7 +437,7 @@ const VideoPlayerSection = () => {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      {isFallbackActive || !episodeData ? (
+      {isFallbackActive || (!episodeData && !hasDonghuaStream) ? (
         <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
           <iframe
             key={`${fallbackAnimeId}-${fallbackEpId}-${activeCategory}`}
@@ -383,10 +448,31 @@ const VideoPlayerSection = () => {
             className="w-full h-full border-0"
           ></iframe>
         </div>
+      ) : isDonghua && currentDonghuaStream?.type === "embed" ? (
+        <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
+          <iframe
+            key={`${activeEpisodeId}-${currentDonghuaStream.url}`}
+            src={currentDonghuaStream.url}
+            width="100%"
+            height="100%"
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture"
+            className="w-full h-full border-0"
+          ></iframe>
+        </div>
+      ) : !episodeData ? (
+        <div className="h-auto aspect-video lg:max-h-[calc(100vh-150px)] min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] w-full animate-pulse bg-slate-800 rounded-xl"></div>
       ) : (
         <KitsunePlayer
-          key={`${activeEpisodeId}-${episodeData.sources?.[0]?.url}`}
-          episodeInfo={episodeData}
+          key={`${activeEpisodeId}-${isDonghua ? currentDonghuaStream?.url : episodeData.sources?.[0]?.url}`}
+          episodeInfo={
+            isDonghua && currentDonghuaStream
+              ? ({
+                  ...episodeData,
+                  sources: [currentDonghuaStream],
+                } as IEpisodeSource)
+              : episodeData
+          }
           serversData={{
             episodeId: activeEpisodeId,
             episodeNo: String(currentEpNumber),
@@ -407,70 +493,104 @@ const VideoPlayerSection = () => {
           }}
           subOrDub={activeCategory}
           autoSkip={autoSkip}
-          onError={tryNextProviderOrFallback}
+          onError={isDonghua ? handleDonghuaError : tryNextProviderOrFallback}
         />
       )}
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full p-5 bg-[#0f172a] border border-slate-800 rounded-xl">
         <div className="flex flex-col gap-3 w-full md:w-auto">
-          {subProvidersForEp.length > 0 && (
+          {isDonghua && donghuaStreams.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2.5">
-              <Captions className="text-red-400 h-4 w-4 shrink-0" />
+              <Tv className="text-[#e9376b] h-4 w-4 shrink-0" />
               <p className="font-bold text-xs text-gray-300 tracking-wider">
-                SERVERS (SUB):
+                SERVERS:
               </p>
-              {subProvidersForEp.map((pName) => {
-                const isActive =
+              {donghuaStreams.map((stream) => {
+                const isSelected =
                   !isFallbackActive &&
-                  currentProviderName.toLowerCase() === pName.toLowerCase() &&
-                  activeCategory === "sub";
+                  (currentDonghuaStream?.server || "") === stream.server;
 
                 return (
                   <Button
                     size="sm"
-                    key={`sub-${pName}`}
+                    key={`dhw-${stream.server}`}
                     className={`uppercase font-bold text-xs px-3 transition-all ${
-                      isActive
+                      isSelected
                         ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
                         : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
                     }`}
-                    onClick={() => handleProviderSelect(pName, "sub")}
+                    onClick={() => {
+                      setSelectedDonghuaServer(stream.server || "");
+                      setUseFallback(false);
+                    }}
                   >
-                    {pName}
+                    {stream.server}
                   </Button>
                 );
               })}
             </div>
-          )}
+          ) : (
+            <>
+              {subProvidersForEp.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Captions className="text-red-400 h-4 w-4 shrink-0" />
+                  <p className="font-bold text-xs text-gray-300 tracking-wider">
+                    SERVERS (SUB):
+                  </p>
+                  {subProvidersForEp.map((pName) => {
+                    const isActive =
+                      !isFallbackActive &&
+                      currentProviderName.toLowerCase() === pName.toLowerCase() &&
+                      activeCategory === "sub";
 
-          {dubProvidersForEp.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2.5">
-              <Mic className="text-green-400 h-4 w-4 shrink-0" />
-              <p className="font-bold text-xs text-gray-300 tracking-wider">
-                SERVERS (DUB):
-              </p>
-              {dubProvidersForEp.map((pName) => {
-                const isActive =
-                  !isFallbackActive &&
-                  currentProviderName.toLowerCase() === pName.toLowerCase() &&
-                  activeCategory === "dub";
+                    return (
+                      <Button
+                        size="sm"
+                        key={`sub-${pName}`}
+                        className={`uppercase font-bold text-xs px-3 transition-all ${
+                          isActive
+                            ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
+                            : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
+                        }`}
+                        onClick={() => handleProviderSelect(pName, "sub")}
+                      >
+                        {pName}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
 
-                return (
-                  <Button
-                    size="sm"
-                    key={`dub-${pName}`}
-                    className={`uppercase font-bold text-xs px-3 transition-all ${
-                      isActive
-                        ? "bg-green-600 text-white shadow-md ring-2 ring-green-500/40 scale-105"
-                        : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
-                    }`}
-                    onClick={() => handleProviderSelect(pName, "dub")}
-                  >
-                    {pName}
-                  </Button>
-                );
-              })}
-            </div>
+              {dubProvidersForEp.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Mic className="text-green-400 h-4 w-4 shrink-0" />
+                  <p className="font-bold text-xs text-gray-300 tracking-wider">
+                    SERVERS (DUB):
+                  </p>
+                  {dubProvidersForEp.map((pName) => {
+                    const isActive =
+                      !isFallbackActive &&
+                      currentProviderName.toLowerCase() === pName.toLowerCase() &&
+                      activeCategory === "dub";
+
+                    return (
+                      <Button
+                        size="sm"
+                        key={`dub-${pName}`}
+                        className={`uppercase font-bold text-xs px-3 transition-all ${
+                          isActive
+                            ? "bg-green-600 text-white shadow-md ring-2 ring-green-500/40 scale-105"
+                            : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
+                        }`}
+                        onClick={() => handleProviderSelect(pName, "dub")}
+                      >
+                        {pName}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
@@ -491,18 +611,38 @@ const VideoPlayerSection = () => {
             size="sm"
             variant="outline"
             onClick={() => {
-              if (isFallbackActive && subProvidersForEp.length > 0) {
-                handleProviderSelect(subProvidersForEp[0], "sub");
+              if (isDonghua) {
+                if (currentDonghuaStream?.type === "embed") {
+                  const hlsStream = donghuaStreams.find((s) => s.type === "hls" || s.type === "mp4");
+                  if (hlsStream?.server) setSelectedDonghuaServer(hlsStream.server);
+                  setUseFallback(false);
+                } else {
+                  const embedStream = donghuaStreams.find((s) => s.type === "embed");
+                  if (embedStream?.server) {
+                    setSelectedDonghuaServer(embedStream.server);
+                    setUseFallback(false);
+                  } else {
+                    setUseFallback(true);
+                  }
+                }
               } else {
-                setUseFallback(true);
+                if (isFallbackActive && subProvidersForEp.length > 0) {
+                  handleProviderSelect(subProvidersForEp[0], "sub");
+                } else {
+                  setUseFallback(true);
+                }
               }
             }}
             className="h-8 px-3 text-xs border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-gray-200 flex items-center gap-1.5"
           >
             <Tv className="h-3.5 w-3.5 text-yellow-400" />
-            {isFallbackActive && subProvidersForEp.length > 0
-              ? "Switch to Primary Player"
-              : "Switch to Fallback Player"}
+            {isDonghua
+              ? currentDonghuaStream?.type === "embed"
+                ? "Switch to Primary Player"
+                : "Switch to Embed Player"
+              : isFallbackActive && subProvidersForEp.length > 0
+                ? "Switch to Primary Player"
+                : "Switch to Fallback Player"}
           </Button>
           {!isFallbackActive && (
             <div className="flex flex-row items-center space-x-2">

@@ -12,6 +12,7 @@ import kaaHandler                  from "./providers/kickassanime.js";
 import animedunyaHandler           from "./providers/animedunya.js";
 import animeonsenHandler           from "./providers/animeonsen.js";
 import anipmHandler                from "./providers/anipm.js";
+import donghuaworldHandler        from "./providers/donghuaworld.js";
 import { getEpisodesResponse, getFilteredEpisodesResponse } from "./core/episode-cache.js";
 import { resolveProviders }         from "./core/episode-strategy.js";
 import { getAsync, setAsync, isFresh, mapTTL, WATCH_TTL, _CACHE_ENABLED } from "./core/smartcache.js";
@@ -256,6 +257,15 @@ export default {
       }
     }
 
+    m = path.match(/^\/watch\/donghuaworld\/(\d+)\/(sub|dub)\/donghuaworld-(\d+)\/?$/);
+    if (m) {
+      const [, id, audio, ep] = m;
+      return cachedWatch(
+        `watch:donghuaworld:${id}:${audio}:${ep}`,
+        () => donghuaworldHandler.fetch(request)
+      );
+    }
+
     m = path.match(/^\/watch\/mkissa\/(\d+)\/(sub|dub)\/mkissa-(\d+)\/?$/);
     if (m) {
       const [, id, audio, ep] = m;
@@ -383,6 +393,7 @@ export default {
       name: `Kitsune Provider API ${env?.API_VERSION ?? "unknown"}`,
       cache: _CACHE_ENABLED,
       providers: [
+        "donghuaworld",
         "mkissa",
         "reanime",
         "anikoto",

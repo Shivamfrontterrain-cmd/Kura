@@ -8,8 +8,9 @@ export async function GET() {
     {
       ok: true,
       mode: "server",
-      version: "2.3.0",
+      version: "2.5.0",
       providers: [
+        "donghuaworld",
         "mkissa",
         "reanime",
         "anikoto",

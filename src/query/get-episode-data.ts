@@ -32,6 +32,19 @@ const getEpisodeData = async (
   const anilistId = Number(parts[2] || parts[3] || data?.anilistId) || 0;
 
   const rawStreams: StreamSourceItem[] = Array.isArray(data?.streams) ? data.streams : [];
+  const allStreams: Source[] = rawStreams
+    .filter((s) => s?.url && s.isActive !== false)
+    .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99))
+    .map((s) => ({
+      url: s.url,
+      type: s.type || (s.url.includes(".m3u8") ? "hls" : s.url.includes(".mp4") ? "mp4" : "embed"),
+      server: s.server || (s.type === "embed" ? "Embed Player" : "Stream Server"),
+      referer: s.referer || s.headers?.Referer || s.headers?.referer || "",
+      headers: s.headers,
+      playlist_key: s.playlist_key || s.key,
+      quality: s.quality,
+    }));
+
   // Filter to playable HLS/MP4 streams (exclude embed-only or DASH-only unless HLS present)
   const playableStreams = rawStreams
     .filter(
@@ -52,6 +65,7 @@ const getEpisodeData = async (
     referer: s.referer || s.headers?.Referer || s.headers?.referer || "",
     headers: s.headers,
     playlist_key: s.playlist_key || s.key,
+    quality: s.quality,
   }));
 
 const SUB_LANG_MAP: Record<string, string> = {
@@ -144,6 +158,7 @@ function resolveSubLabel(sub: any, fileUrl: string): string {
     intro: data?.intro || { start: 0, end: 0 },
     outro: data?.outro || { start: 0, end: 0 },
     sources,
+    allStreams,
     anilistID: anilistId,
     malID: 0,
   };

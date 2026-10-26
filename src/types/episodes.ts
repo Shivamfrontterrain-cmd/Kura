@@ -21,6 +21,7 @@ export interface IEpisodeSource {
   intro: Intro;
   outro: Outro;
   sources: Source[];
+  allStreams?: Source[];
   anilistID: number;
   malID: number;
 }
@@ -65,4 +66,5 @@ export interface Source {
   referer?: string;
   headers?: Record<string, string>;
   playlist_key?: string;
+  quality?: string;
 }
