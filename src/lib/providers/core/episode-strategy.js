@@ -138,7 +138,7 @@ export async function buildFilteredEpisodesWithCache(anilistId, providers, media
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match3:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+      withCache(`epv:match4:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
     );
     return {
       luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },
@@ -165,7 +165,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match3:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+      withCache(`epv:match4:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
     );
     return {
       luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },

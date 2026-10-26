@@ -30,16 +30,18 @@ async function findSeriesUrl(anilistId, media) {
   if (media?.title?.romaji) candidateTitles.push(media.title.romaji);
   if (media?.title?.native) candidateTitles.push(media.title.native);
 
-  // Clean titles for search (remove season labels, brackets)
+  // Clean titles for search (remove season labels, brackets, trailing digits)
   const queries = [];
   for (const raw of candidateTitles) {
     const cleaned = raw.replace(/\([^)]*\)/g, "").replace(/\[[^\]]*\]/g, "").replace(/Season\s*\d+/i, "").trim();
     if (cleaned.length >= 3 && !queries.includes(cleaned)) queries.push(cleaned);
+    const baseCleaned = cleaned.replace(/\b\d+\b/g, "").trim();
+    if (baseCleaned.length >= 3 && !queries.includes(baseCleaned)) queries.push(baseCleaned);
   }
 
   const isMovie = media?.format === "MOVIE";
   const primaryTitle = candidateTitles[0] || "";
-  const seasonMatch = primaryTitle.match(/season\s*(\d+)/i) || primaryTitle.match(/(\d+)(?:st|nd|rd|th)\s*season/i) || primaryTitle.match(/\bS(\d+)\b/i);
+  const seasonMatch = primaryTitle.match(/season\s*(\d+)/i) || primaryTitle.match(/(\d+)(?:st|nd|rd|th)\s*season/i) || primaryTitle.match(/\bS(\d+)\b/i) || primaryTitle.match(/\b(\d+)$/);
   const targetSeason = seasonMatch ? Number(seasonMatch[1]) : null;
 
   for (const query of queries) {
@@ -77,6 +79,7 @@ async function findSeriesUrl(anilistId, media) {
         for (const item of articles) {
           const lowerTitle = (item.title || "").toLowerCase();
           const lowerLink = item.link.toLowerCase();
+          const pTitle = primaryTitle.toLowerCase();
 
           if (isMovie) {
             if (lowerTitle.includes("movie") || lowerLink.includes("movie") || lowerTitle.includes("juchang ban")) {
@@ -88,21 +91,34 @@ async function findSeriesUrl(anilistId, media) {
             if (lowerTitle.includes("movie") || lowerLink.includes("movie") || lowerTitle.includes("juchang ban")) continue;
           }
 
-          let score = 0;
+          // Penalize specials / origin prequels unless specifically searching for them
+          if (!pTitle.includes("origin") && (lowerTitle.includes("origin") || lowerLink.includes("origin"))) {
+            continue;
+          }
+          if (!pTitle.includes("special") && (lowerTitle.includes("special") || lowerLink.includes("special"))) {
+            continue;
+          }
+
+          let score = 10;
           const itemSeasonMatch = lowerTitle.match(/season\s*(\d+)/i) || lowerLink.match(/season-(\d+)/i);
           const itemSeason = itemSeasonMatch ? Number(itemSeasonMatch[1]) : (lowerTitle.includes("season 1") ? 1 : null);
 
           if (targetSeason !== null) {
             if (itemSeason === targetSeason) {
               score += 50;
+            } else if (targetSeason >= 5 && itemSeason === 5) {
+              // Continuous multi-year Donghua broadcast is grouped under Season 5 on LuciferDonghua
+              score += 35;
             } else if (itemSeason !== null) {
-              score -= 40;
+              score -= 20;
             }
           } else {
             if (itemSeason === 1 || itemSeason === null) {
-              score += 10;
+              score += 15;
             }
           }
+
+          if (lowerLink.includes("new")) score += 5;
 
           if (score > bestScore) {
             bestScore = score;
@@ -142,6 +158,18 @@ async function findSeriesUrl(anilistId, media) {
   return null;
 }
 
+export function parseEpisodeRange(description) {
+  if (!description || typeof description !== "string") return null;
+  const m = description.match(/(?:Note:\s*)?Episodes\s*(\d+)\s*(?:to|-)\s*(\d+)/i);
+  if (!m) return null;
+  const start = Number(m[1]);
+  const end = Number(m[2]);
+  if (Number.isFinite(start) && Number.isFinite(end) && start > 1) {
+    return { start, end, offset: start - 1 };
+  }
+  return null;
+}
+
 /**
  * Fetches episode list for an anime from LuciferDonghua
  */
@@ -163,7 +191,6 @@ export async function getEpisodes(anilistId, ctx = {}) {
   const html = await res.text();
 
   // Extract episode items from <div class="eplister">
-  // <li data-index="0"><a href="..."><div class="epl-num">45 [4K]</div><div class="epl-title">...</div>...
   const liMatches = Array.from(
     html.matchAll(/<li[^>]*data-index="(\d+)"[^>]*>[\s\S]*?<a\s+href="([^"]+)"[\s\S]*?<div class="epl-num">([\s\S]*?)<\/div>[\s\S]*?(?:<div class="epl-title">([\s\S]*?)<\/div>)?[\s\S]*?(?:<div class="epl-date">([\s\S]*?)<\/div>)?[\s\S]*?<\/li>/gi)
   );
@@ -172,6 +199,7 @@ export async function getEpisodes(anilistId, ctx = {}) {
     throw new Error(`LuciferDonghua: No episodes parsed from ${seriesUrl}`);
   }
 
+  const range = parseEpisodeRange(media?.description);
   const sub = [];
 
   for (const match of liMatches) {
@@ -185,22 +213,72 @@ export async function getEpisodes(anilistId, ctx = {}) {
     const cleanTitle = stripTags(rawTitle || "").trim() || meta.title || `Episode ${epNum}`;
     const cleanDate = stripTags(rawDate || "").trim() || meta.airDate;
 
-    // Cache the episode URL for fast watch retrieval
-    cacheSet(`ld:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
+    if (range) {
+      if (epNum >= range.start && epNum <= range.end) {
+        const relEpNum = epNum - range.offset;
+        // Cache both relative (e.g. 7) and absolute (e.g. 164)
+        cacheSet(`ld:ep:${anilistId}:${relEpNum}`, epUrl, SHOW_IDENTITY_TTL);
+        cacheSet(`ld:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
 
-    sub.push({
-      id: `watch/luciferdonghua/${anilistId}/sub/luciferdonghua-${epNum}`,
-      number: epNum,
-      title: cleanTitle,
-      duration: meta.duration || 1200,
-      audio: "sub",
-      filler: false,
-      recap: false,
-      uncensored: false,
-      description: meta.description || "",
-      image: meta.image,
-      airDate: cleanDate,
-    });
+        sub.push({
+          id: `watch/luciferdonghua/${anilistId}/sub/luciferdonghua-${relEpNum}`,
+          number: relEpNum,
+          title: cleanTitle.includes(String(epNum)) ? cleanTitle : `Episode ${relEpNum} [Ep ${epNum}]`,
+          duration: meta.duration || 1200,
+          audio: "sub",
+          filler: false,
+          recap: false,
+          uncensored: false,
+          description: meta.description || "",
+          image: meta.image,
+          airDate: cleanDate,
+        });
+      }
+    } else {
+      cacheSet(`ld:ep:${anilistId}:${epNum}`, epUrl, SHOW_IDENTITY_TTL);
+      sub.push({
+        id: `watch/luciferdonghua/${anilistId}/sub/luciferdonghua-${epNum}`,
+        number: epNum,
+        title: cleanTitle,
+        duration: meta.duration || 1200,
+        audio: "sub",
+        filler: false,
+        recap: false,
+        uncensored: false,
+        description: meta.description || "",
+        image: meta.image,
+        airDate: cleanDate,
+      });
+    }
+  }
+
+  // Fallback: if range was set but matched 0 episodes, push all episodes from series
+  if (range && sub.length === 0) {
+    for (const match of liMatches) {
+      const [, , epUrl, rawNum, rawTitle, rawDate] = match;
+      const numMatch = rawNum.match(/(\d+)/);
+      if (!numMatch) continue;
+      const epNum = Number(numMatch[1]);
+      if (!Number.isFinite(epNum) || epNum <= 0) continue;
+
+      const meta = episodeMeta(epNum, ctx);
+      const cleanTitle = stripTags(rawTitle || "").trim() || meta.title || `Episode ${epNum}`;
+      const cleanDate = stripTags(rawDate || "").trim() || meta.airDate;
+
+      sub.push({
+        id: `watch/luciferdonghua/${anilistId}/sub/luciferdonghua-${epNum}`,
+        number: epNum,
+        title: cleanTitle,
+        duration: meta.duration || 1200,
+        audio: "sub",
+        filler: false,
+        recap: false,
+        uncensored: false,
+        description: meta.description || "",
+        image: meta.image,
+        airDate: cleanDate,
+      });
+    }
   }
 
   // Ensure ascending order (Ep 1, Ep 2, Ep 3 ...)
@@ -243,8 +321,21 @@ export async function handleWatch(anilistId, audio, epNum) {
 
   // Fallback: fetch episodes to resolve epUrl if not in cache
   if (!epUrl) {
-    await getEpisodes(anilistId).catch(() => null);
+    const media = await getMedia(anilistId).catch(() => null);
+    await getEpisodes(anilistId, { media }).catch(() => null);
     epUrl = cacheGet(`ld:ep:${anilistId}:${epNum}`)?.data;
+
+    if (!epUrl && media) {
+      const range = parseEpisodeRange(media.description);
+      if (range) {
+        const num = Number(epNum);
+        if (num <= (range.end - range.offset)) {
+          epUrl = cacheGet(`ld:ep:${anilistId}:${num + range.offset}`)?.data;
+        } else if (num >= range.start && num <= range.end) {
+          epUrl = cacheGet(`ld:ep:${anilistId}:${num - range.offset}`)?.data;
+        }
+      }
+    }
   }
 
   if (!epUrl) {
@@ -307,13 +398,13 @@ export async function handleWatch(anilistId, audio, epNum) {
     }
 
     // Parse all mirror options in <select class="mirror">
-    const options = Array.from(html.matchAll(/<option\s+value="([^"]+)"[^>]*data-index="(\d+)"[^>]*>([\s\S]*?)<\/option>/gi));
+    const options = Array.from(html.matchAll(/<option[^>]*value=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/option>/gi));
 
     // Fetch all mirrors in parallel for maximum speed
-    const mirrorFetches = options.map(async (opt) => {
+    const mirrorFetches = options.map(async (opt, idx) => {
       const vUrl = opt[1];
-      const dataIdx = opt[2];
-      const rawLabel = opt[3].replace(/\s+/g, " ").trim();
+      const dataIdx = String(idx + 1);
+      const rawLabel = opt[2].replace(/\s+/g, " ").trim();
       const lower = rawLabel.toLowerCase();
 
       try {
@@ -331,10 +422,65 @@ export async function handleWatch(anilistId, audio, epNum) {
     for (const m of mirrorResults) {
       const { dataIdx, rawLabel, lower, vHtml } = m;
 
-      // 1. Dailymotion Server
-      if (lower.includes("dailymotion") || dataIdx === "1") {
-        const vDm = vHtml.match(/data-video="([a-zA-Z0-9]+)"/i)
-          || vHtml.match(/embedUrl["']\s+content=["'](https:\/\/geo\.dailymotion\.com\/player\/[^"']+)["']/i);
+      const allIframes = Array.from(vHtml.matchAll(/<iframe[^>]+src=["']([^"']+)["']/gi)).map(match => match[1]);
+      const videoIframes = allIframes
+        .map(u => (u.startsWith("//") ? `https:${u}` : u))
+        .filter(u => !u.includes("t.co") && !u.includes("blogspot") && !u.includes("about:blank") && !u.includes("histats") && !u.includes("disqus") && !u.includes("facebook") && !u.includes("twitter"));
+
+      // 1. VidHide / Yurn Server (4K direct HLS / embed)
+      const yurnUrl = videoIframes.find(u => u.includes("yurn.online") || u.includes("vidhide"));
+      if (yurnUrl && !streams.some(s => s.server.includes("VidHide"))) {
+        let hlsUrl = null;
+        try {
+          const yurnRes = await fetch(yurnUrl, {
+            headers: {
+              "User-Agent": UA,
+              "Referer": `${BASE}/`,
+            },
+          });
+          if (yurnRes.ok) {
+            const yHtml = await yurnRes.text();
+            const evalMatch = yHtml.match(/eval\(function\(p,a,c,k,e,d[\s\S]*?<\/script>/i);
+            if (evalMatch) {
+              const code = evalMatch[0].replace(/<\/script>$/i, "");
+              const cleanFn = code.replace(/^[\s\S]*?eval\(/, "(");
+              const unpacked = Function(`"use strict"; return ${cleanFn}`)();
+              const m3u8 = unpacked.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
+              if (m3u8) hlsUrl = m3u8[0];
+            }
+          }
+        } catch (e) {
+          console.warn("[luciferdonghua] Yurn HLS unpack error:", e.message);
+        }
+
+        if (hlsUrl) {
+          streams.unshift({
+            server: "VidHide (4K HLS)",
+            url: hlsUrl,
+            embedUrl: yurnUrl,
+            type: "hls",
+            referer: "https://yurn.online/",
+            quality: "4k",
+            priority: 1,
+            isActive: true,
+          });
+        } else {
+          streams.unshift({
+            server: "VidHide (4K)",
+            url: yurnUrl,
+            type: "embed",
+            quality: "4k",
+            priority: 1,
+            isActive: true,
+          });
+        }
+      }
+
+      // 2. Dailymotion Server
+      const vDm = vHtml.match(/data-video=["']([a-zA-Z0-9]+)["']/i)
+        || vHtml.match(/dailymotion\.com\/(?:embed\/video|player\/xdcdz\.html\?video)=([a-zA-Z0-9]+)/i)
+        || vHtml.match(/embedUrl["']\s+content=["'](https:\/\/geo\.dailymotion\.com\/player\/[^"']+)["']/i);
+      if (vDm || lower.includes("dailymotion")) {
         const dmId = vDm ? (vDm[1].startsWith("http") ? null : vDm[1]) : defaultDmId;
         const dmEmbed = vDm && vDm[1].startsWith("http")
           ? vDm[1]
@@ -347,104 +493,49 @@ export async function handleWatch(anilistId, audio, epNum) {
             type: "embed",
             quality: "4k",
             priority: 2,
-            isActive: false,
+            isActive: !streams.some(s => s.isActive),
           });
         }
       }
-      // 2. Rumble Server
-      else if (lower.includes("rumble") || dataIdx === "2") {
-        const rumbleMatch = vHtml.match(/src="(https:\/\/rumble\.com\/embed\/[^"]+)"/i);
-        if (rumbleMatch) {
-          streams.push({
-            server: "Rumble (4K)",
-            url: rumbleMatch[1],
-            type: "embed",
-            quality: "4k",
-            priority: 3,
-            isActive: false,
-          });
-        }
-      }
-      // 3. VidHide / Yurn Server (4K direct HLS stream via Packer unpack)
-      else if (lower.includes("vid hide") || lower.includes("vidhide") || lower.includes("yurn") || dataIdx === "3") {
-        const iframeMatch = vHtml.match(/<iframe[^>]+src="([^"]+yurn\.online[^"]+)"/i) || vHtml.match(/<iframe[^>]+src="([^"]+vidhide[^"]+)"/i);
-        if (iframeMatch) {
-          const yurnUrl = iframeMatch[1].startsWith("//") ? `https:${iframeMatch[1]}` : iframeMatch[1];
-          let hlsUrl = null;
-          try {
-            const yurnRes = await fetch(yurnUrl, {
-              headers: {
-                "User-Agent": UA,
-                "Referer": `${BASE}/`,
-              },
-            });
-            if (yurnRes.ok) {
-              const yHtml = await yurnRes.text();
-              const evalMatch = yHtml.match(/eval\(function\(p,a,c,k,e,d[\s\S]*?<\/script>/i);
-              if (evalMatch) {
-                const code = evalMatch[0].replace(/<\/script>$/i, "");
-                const cleanFn = code.replace(/^[\s\S]*?eval\(/, "(");
-                const unpacked = Function(`"use strict"; return ${cleanFn}`)();
-                const m3u8 = unpacked.match(/https?:\/\/[^\s"']+\.m3u8[^\s"']*/i);
-                if (m3u8) hlsUrl = m3u8[0];
-              }
-            }
-          } catch (e) {
-            console.warn("[luciferdonghua] Yurn HLS unpack error:", e.message);
-          }
 
-          if (hlsUrl) {
-            streams.unshift({
-              server: "VidHide (4K HLS)",
-              url: hlsUrl,
-              embedUrl: yurnUrl,
-              type: "hls",
-              referer: "https://yurn.online/",
-              quality: "4k",
-              priority: 1,
-              isActive: true,
-            });
-          } else {
-            streams.unshift({
-              server: "VidHide (4K)",
-              url: yurnUrl,
-              type: "embed",
-              quality: "4k",
-              priority: 1,
-              isActive: true,
-            });
-          }
-        }
+      // 3. Rumble Server
+      const rumbleUrl = videoIframes.find(u => u.includes("rumble.com"));
+      if (rumbleUrl && !streams.some(s => s.server.includes("Rumble"))) {
+        streams.push({
+          server: "Rumble (4K)",
+          url: rumbleUrl,
+          type: "embed",
+          quality: "4k",
+          priority: 3,
+          isActive: false,
+        });
       }
+
       // 4. OK.RU Server
-      else if (lower.includes("ok.ru") || lower.includes("okru") || dataIdx === "4") {
-        const okMatch = vHtml.match(/src="(\/\/[^"]*ok\.ru\/videoembed\/[^"]+)"/i) || vHtml.match(/src="(https?:\/\/[^"]*ok\.ru\/videoembed\/[^"]+)"/i);
-        if (okMatch) {
-          const okUrl = okMatch[1].startsWith("//") ? `https:${okMatch[1]}` : okMatch[1];
-          streams.push({
-            server: "OK.RU (4K)",
-            url: okUrl,
-            type: "embed",
-            quality: "4k",
-            priority: 4,
-            isActive: false,
-          });
-        }
+      const okUrl = videoIframes.find(u => u.includes("ok.ru"));
+      if (okUrl && !streams.some(s => s.server.includes("OK.RU"))) {
+        streams.push({
+          server: "OK.RU (4K)",
+          url: okUrl,
+          type: "embed",
+          quality: "4k",
+          priority: 4,
+          isActive: false,
+        });
       }
-      // 5. Generic extra server (e.g. Server 5 / MisterDonghua)
-      else {
-        const genIframe = vHtml.match(/<iframe[^>]+src="([^"]+)"/i);
-        if (genIframe && !genIframe[1].includes("t.co") && !genIframe[1].includes("about:blank")) {
-          const genUrl = genIframe[1].startsWith("//") ? `https:${genIframe[1]}` : genIframe[1];
-          const cleanLabel = rawLabel.replace(/\[|\]|- Server/gi, "").trim() || `Server ${dataIdx}`;
-          streams.push({
-            server: cleanLabel,
-            url: genUrl,
-            type: "embed",
-            priority: 10 + Number(dataIdx),
-            isActive: false,
-          });
-        }
+
+      // 5. Generic / MisterDonghua / Extra Server
+      const otherUrl = videoIframes.find(u => !u.includes("yurn.online") && !u.includes("vidhide") && !u.includes("rumble.com") && !u.includes("ok.ru"));
+      if (otherUrl && !streams.some(s => s.url === otherUrl)) {
+        const srvName = otherUrl.includes("misterdonghua") ? "V2 (4K)" : (rawLabel.replace(/\[|\]|- Server/gi, "").trim() || `Server ${dataIdx}`);
+        streams.push({
+          server: srvName,
+          url: otherUrl,
+          type: "embed",
+          quality: "4k",
+          priority: 5,
+          isActive: false,
+        });
       }
     }
 
