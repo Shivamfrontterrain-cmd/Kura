@@ -32,7 +32,7 @@ const getEpisodeData = async (
   const anilistId = Number(parts[2] || parts[3] || data?.anilistId) || 0;
 
   const rawStreams: StreamSourceItem[] = Array.isArray(data?.streams) ? data.streams : [];
-  // Filter to playable HLS/MP4 streams (exclude embed-only or DASH-only unless HLS present)
+  // Filter to playable streams (HLS, MP4, or embed)
   const playableStreams = rawStreams
     .filter(
       (s) =>
@@ -41,17 +41,20 @@ const getEpisodeData = async (
         (s.type === "hls" ||
           s.type === "m3u8" ||
           s.type === "mp4" ||
+          s.type === "embed" ||
           s.url.includes(".m3u8")),
     )
     .sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99));
 
   const sources: Source[] = playableStreams.map((s) => ({
     url: s.url,
-    type: s.type || "hls",
+    type: s.type || (s.url.includes(".m3u8") ? "hls" : "embed"),
     server: s.server,
     referer: s.referer || s.headers?.Referer || s.headers?.referer || "",
     headers: s.headers,
     playlist_key: s.playlist_key || s.key,
+    quality: s.quality,
+    embedUrl: (s as any).embedUrl,
   }));
 
 const SUB_LANG_MAP: Record<string, string> = {

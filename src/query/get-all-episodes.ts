@@ -134,6 +134,7 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
         hasSub: true,
         hasDub: false,
       }));
+      episodeList.sort((a, b) => a.number - b.number);
 
       const normalizedRawResponse: EpisodeResponse = {
         ...data,

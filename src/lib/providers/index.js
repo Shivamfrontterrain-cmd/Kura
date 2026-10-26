@@ -387,12 +387,23 @@ export default {
       );
     }
 
+    m = path.match(/^\/watch\/luciferdonghua\/(\d+)\/(sub|dub)\/luciferdonghua-(\d+)\/?$/);
+    if (m) {
+      const [, id, audio, ep] = m;
+      return cachedWatch(
+        `watch:luciferdonghua:${id}:${audio}:${ep}`,
+        () => luciferdonghuaHandler.fetch(request),
+        WATCH_TTL
+      );
+    }
+
     if (path.startsWith("/watch/")) return json({ error: "Not found" }, 404);
 
     return json({
       name: `Kitsune Provider API ${env?.API_VERSION ?? "unknown"}`,
       cache: _CACHE_ENABLED,
       providers: [
+        "luciferdonghua",
         "mkissa",
         "reanime",
         "anikoto",

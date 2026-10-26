@@ -27,6 +27,7 @@ export interface Info {
   poster: string;
   bannerImage?: string;
   description: string;
+  countryOfOrigin?: string;
   stats: Stats;
   promotionalVideos: PromotionalVideo[];
   charactersVoiceActors: CharactersVoiceActor[];

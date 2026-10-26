@@ -65,4 +65,6 @@ export interface Source {
   referer?: string;
   headers?: Record<string, string>;
   playlist_key?: string;
+  quality?: string;
+  embedUrl?: string;
 }

@@ -99,6 +99,7 @@ const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
         poster: poster,
         bannerImage: media.bannerImage || media.coverImage?.extraLarge || "",
         description: media.description || "",
+        countryOfOrigin: media.countryOfOrigin,
         stats: {
           rating: media.averageScore ? `${media.averageScore}%` : "N/A",
           quality: "HD",
