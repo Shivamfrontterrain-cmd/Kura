@@ -31,6 +31,7 @@ import {
   COMPANION_UI_URL,
   detectLocalProxy,
 } from "@/lib/local-proxy";
+import { isKnownDonghua } from "@/constants/donghua";
 
 const VideoPlayerSection = () => {
   const searchParams = useSearchParams();
@@ -51,6 +52,7 @@ const VideoPlayerSection = () => {
 
   const isDonghua = React.useMemo(() => {
     return (
+      isKnownDonghua(animeIdParam, anime?.anime?.info) ||
       (anime?.anime?.info as any)?.countryOfOrigin === "CN" ||
       (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
       (allEpisodesData?.availableProviders || []).includes("donghuaworld") ||
@@ -58,12 +60,50 @@ const VideoPlayerSection = () => {
       (allEpisodesData?.episodes?.[0]?.episodeId || "").includes("/donghuaworld/")
     );
   }, [
+    animeIdParam,
     anime?.anime?.info,
     allEpisodesData?.rawResponse,
     allEpisodesData?.availableProviders,
     selectedEpisode,
     allEpisodesData?.episodes,
   ]);
+
+  // Target episode number from ?ep= or extracted from episode parameter
+  const targetEpNum = React.useMemo(() => {
+    if (epParam && !isNaN(Number(epParam))) return Number(epParam);
+    if (episodeIdParam) {
+      const match = episodeIdParam.match(/(\d+)(?:$|\/)/);
+      if (match) return Number(match[1]);
+    }
+    return 1;
+  }, [epParam, episodeIdParam]);
+
+  // Sanitize episodeIdParam: for Donghua, reject non-donghuaworld episode IDs
+  const validEpisodeIdParam = React.useMemo(() => {
+    if (!episodeIdParam) return "";
+    if (isDonghua) {
+      if (episodeIdParam.includes("/donghuaworld/")) return episodeIdParam;
+      return `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}`;
+    }
+    return episodeIdParam;
+  }, [episodeIdParam, isDonghua, animeIdParam, targetEpNum]);
+
+  // Sanitize selectedEpisode: for Donghua, reject non-donghuaworld stored IDs
+  const validSelectedEpisode = React.useMemo(() => {
+    if (!selectedEpisode) return "";
+    if (isDonghua && !selectedEpisode.includes("/donghuaworld/")) {
+      return "";
+    }
+    return selectedEpisode;
+  }, [selectedEpisode, isDonghua]);
+
+  // Store synchronization to fix dirty localStorage / store
+  useEffect(() => {
+    if (isDonghua && selectedEpisode && !selectedEpisode.includes("/donghuaworld/")) {
+      const cleanId = `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}`;
+      setSelectedEpisode(cleanId);
+    }
+  }, [isDonghua, selectedEpisode, animeIdParam, targetEpNum, setSelectedEpisode]);
 
   // Match episode number from ?ep= parameter if present (with clamp to latest available)
   const targetEpByNumber =
@@ -77,9 +117,14 @@ const VideoPlayerSection = () => {
 
   // Resolve active episode ID prioritizing selectedEpisode or ?ep= parameter
   const activeEpisodeId =
-    selectedEpisode ||
-    targetEpByNumber?.episodeId ||
-    episodeIdParam ||
+    validSelectedEpisode ||
+    (isDonghua && targetEpByNumber?.episodeId?.includes("/donghuaworld/")
+      ? targetEpByNumber.episodeId
+      : !isDonghua
+        ? targetEpByNumber?.episodeId
+        : "") ||
+    validEpisodeIdParam ||
+    (isDonghua ? `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}` : "") ||
     allEpisodesData?.episodes?.[0]?.episodeId ||
     "";
 
@@ -88,7 +133,7 @@ const VideoPlayerSection = () => {
     if (!targetEpByNumber?.episodeId) return;
     const parts = (selectedEpisode || "").replace(/^\//, "").split("/");
     const selEpNum = parts[4] ? Number(parts[4].split("-").pop()) : Number(selectedEpisode);
-    if (!selectedEpisode || selEpNum !== targetEpByNumber.number) {
+    if (!selectedEpisode || selEpNum !== targetEpByNumber.number || (isDonghua && !selectedEpisode.includes("/donghuaworld/"))) {
       const providers = allEpisodesData?.rawResponse?.providers || {};
       const curProv = isDonghua ? "donghuaworld" : parts[1];
       const curCat = (parts[3] === "dub" ? "dub" : "sub") as "sub" | "dub";
@@ -97,7 +142,10 @@ const VideoPlayerSection = () => {
             (e: any) => Number(e.number) === targetEpByNumber.number,
           )
         : null;
-      setSelectedEpisode(matchInCurProv?.id || targetEpByNumber.episodeId);
+      setSelectedEpisode(
+        matchInCurProv?.id ||
+        (isDonghua ? `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpByNumber.number}` : targetEpByNumber.episodeId)
+      );
       setUseFallback(false);
     }
   }, [
@@ -107,6 +155,7 @@ const VideoPlayerSection = () => {
     allEpisodesData?.rawResponse?.providers,
     setSelectedEpisode,
     isDonghua,
+    animeIdParam,
   ]);
 
   const [useFallback, setUseFallback] = useState<boolean>(false);
@@ -421,16 +470,22 @@ const VideoPlayerSection = () => {
     );
   }
 
-  const subProvidersForEp = providerNames.filter((pName) =>
-    (rawProviders[pName]?.episodes?.sub || []).some(
-      (ep: any) => Number(ep.number) === currentEpNumber,
-    ),
-  );
-  const dubProvidersForEp = providerNames.filter((pName) =>
-    (rawProviders[pName]?.episodes?.dub || []).some(
-      (ep: any) => Number(ep.number) === currentEpNumber,
-    ),
-  );
+  const subProvidersForEp = isDonghua
+    ? (rawProviders["donghuaworld"] ? ["donghuaworld"] : [])
+    : providerNames.filter((pName) =>
+        pName !== "donghuaworld" &&
+        (rawProviders[pName]?.episodes?.sub || []).some(
+          (ep: any) => Number(ep.number) === currentEpNumber,
+        ),
+      );
+  const dubProvidersForEp = isDonghua
+    ? []
+    : providerNames.filter((pName) =>
+        pName !== "donghuaworld" &&
+        (rawProviders[pName]?.episodes?.dub || []).some(
+          (ep: any) => Number(ep.number) === currentEpNumber,
+        ),
+      );
 
   const nextAiring = allEpisodesData?.nextAiringEpisode;
   const nextAiringDays = nextAiring
@@ -487,14 +542,21 @@ const VideoPlayerSection = () => {
           serversData={{
             episodeId: activeEpisodeId,
             episodeNo: String(currentEpNumber),
-            sub: subProvidersForEp.map((p, idx) => ({
-              serverId: idx + 1,
-              serverName: p,
-            })),
-            dub: dubProvidersForEp.map((p, idx) => ({
-              serverId: idx + 1,
-              serverName: p,
-            })),
+            sub: isDonghua
+              ? donghuaStreams.map((s, idx) => ({
+                  serverId: idx + 1,
+                  serverName: s.server || "DonghuaWorld",
+                }))
+              : subProvidersForEp.map((p, idx) => ({
+                  serverId: idx + 1,
+                  serverName: p,
+                })),
+            dub: isDonghua
+              ? []
+              : dubProvidersForEp.map((p, idx) => ({
+                  serverId: idx + 1,
+                  serverName: p,
+                })),
             raw: [],
           }}
           animeInfo={{
@@ -510,35 +572,39 @@ const VideoPlayerSection = () => {
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full p-5 bg-[#0f172a] border border-slate-800 rounded-xl">
         <div className="flex flex-col gap-3 w-full md:w-auto">
-          {isDonghua && donghuaStreams.length > 0 ? (
+          {isDonghua ? (
             <div className="flex flex-wrap items-center gap-2.5">
               <Tv className="text-[#e9376b] h-4 w-4 shrink-0" />
               <p className="font-bold text-xs text-gray-300 tracking-wider">
                 SERVERS:
               </p>
-              {donghuaStreams.map((stream) => {
-                const isSelected =
-                  !isFallbackActive &&
-                  (currentDonghuaStream?.server || "") === stream.server;
+              {donghuaStreams.length > 0 ? (
+                donghuaStreams.map((stream) => {
+                  const isSelected =
+                    !isFallbackActive &&
+                    (currentDonghuaStream?.server || "") === stream.server;
 
-                return (
-                  <Button
-                    size="sm"
-                    key={`dhw-${stream.server}`}
-                    className={`uppercase font-bold text-xs px-3 transition-all ${
-                      isSelected
-                        ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
-                        : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
-                    }`}
-                    onClick={() => {
-                      setSelectedDonghuaServer(stream.server || "");
-                      setUseFallback(false);
-                    }}
-                  >
-                    {stream.server}
-                  </Button>
-                );
-              })}
+                  return (
+                    <Button
+                      size="sm"
+                      key={`dhw-${stream.server}`}
+                      className={`uppercase font-bold text-xs px-3 transition-all ${
+                        isSelected
+                          ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
+                          : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
+                      }`}
+                      onClick={() => {
+                        setSelectedDonghuaServer(stream.server || "");
+                        setUseFallback(false);
+                      }}
+                    >
+                      {stream.server}
+                    </Button>
+                  );
+                })
+              ) : (
+                <span className="text-xs text-slate-400 animate-pulse">Loading DonghuaWorld servers...</span>
+              )}
             </div>
           ) : (
             <>

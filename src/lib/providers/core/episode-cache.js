@@ -40,7 +40,9 @@ function latestEpisodeFromResponse(data) {
 function hasCurrentProviders(data) {
   if (!data) return false;
   const isDonghua =
+    isDonghuaMedia(data?.mappings, data?.mappings?.id || data?.mappings?.anilistId) ||
     data.countryOfOrigin === "CN" ||
+    data?.mappings?.countryOfOrigin === "CN" ||
     data.isDonghua === true ||
     Object.prototype.hasOwnProperty.call(data, "donghuaworld");
 
@@ -224,7 +226,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match10:${anilistId}`;
+  const cacheKey = `episodes:match11:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

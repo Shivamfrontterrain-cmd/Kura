@@ -1,6 +1,7 @@
 import providerWorker from "@/lib/providers/index.js";
 import { CORS_PNA_HEADERS } from "@/lib/hls-proxy";
 import { NextRequest, NextResponse } from "next/server";
+import { isKnownDonghua } from "@/constants/donghua";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,20 @@ export async function GET(
   try {
     const { slug } = await context.params;
     const currentUrl = new URL(req.url);
-    const targetUrl = new URL(`/watch/${slug.join("/")}${currentUrl.search}`, req.url);
+
+    // Strict Donghua Redirect:
+    // If anime ID is Donghua, force provider to donghuaworld!
+    let effectiveSlug = [...slug];
+    const provider = (effectiveSlug[0] || "").toLowerCase();
+    const animeId = effectiveSlug[1] || "";
+    if (provider !== "donghuaworld" && isKnownDonghua(animeId)) {
+      const epPart = effectiveSlug[3] || "";
+      const epNumMatch = epPart.match(/(\d+)/);
+      const epNum = epNumMatch ? epNumMatch[1] : "1";
+      effectiveSlug = ["donghuaworld", animeId, "sub", `donghuaworld-${epNum}`];
+    }
+
+    const targetUrl = new URL(`/watch/${effectiveSlug.join("/")}${currentUrl.search}`, req.url);
     const res = await providerWorker.fetch(
       new Request(targetUrl.toString(), { headers: req.headers }),
       {},

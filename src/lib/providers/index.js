@@ -260,10 +260,10 @@ export default {
     // Strict Donghua Watch Interceptor:
     // If a request targets a known Donghua through an old or non-donghuaworld provider route,
     // intercept and route it directly to donghuaworld!
-    const watchMatch = path.match(/^\/watch\/([a-z0-9_-]+)\/(\d+)\/(sub|dub)\/([a-z0-9_-]+)-(\d+)\/?$/i);
+    const watchMatch = path.match(/^\/watch\/([a-z0-9_-]+)\/(\d+)\/(sub|dub)\/(?:[a-z0-9_-]+-)?(\d+)\/?$/i);
     if (watchMatch) {
-      const [, prov, id, audio, , ep] = watchMatch;
-      if (prov.toLowerCase() !== "donghuaworld" && KNOWN_SERIES_MAP[Number(id)]) {
+      const [, prov, id, audio, ep] = watchMatch;
+      if (prov.toLowerCase() !== "donghuaworld" && (KNOWN_SERIES_MAP[Number(id)] || isDonghuaMedia(null, id))) {
         return cachedWatch(
           `watch:donghuaworld:${id}:sub:${ep}`,
           () => donghuaworldHandler.fetch(rewriteRequest(request, `/watch/donghuaworld/${id}/sub/donghuaworld-${ep}`))

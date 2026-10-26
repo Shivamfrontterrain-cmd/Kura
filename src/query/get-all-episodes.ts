@@ -4,6 +4,7 @@ import { resolveApiEndpoint } from "@/lib/local-proxy";
 import { Episode, IEpisodes } from "@/types/episodes";
 import { EpisodeResponse, NextAiringEpisode } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
+import { isKnownDonghua } from "@/constants/donghua";
 
 const KNOWN_PROVIDERS = [
   "donghuaworld",
@@ -120,11 +121,20 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
     // Strict Donghua detection and isolation:
     // If it is Donghua, strictly and ONLY use donghuaworld! Never mix in Japanese providers!
     const isDonghua =
+      isKnownDonghua(animeId, data?.mappings || data) ||
       Boolean(providersMap["donghuaworld"]) ||
       data?.countryOfOrigin === "CN" ||
+      data?.mappings?.countryOfOrigin === "CN" ||
       data?.isDonghua === true;
 
     if (isDonghua) {
+      // STRICT DONGHUA RESTRICTION: immediately purge all non-donghuaworld providers
+      for (const k of Object.keys(providersMap)) {
+        if (k !== "donghuaworld") {
+          delete providersMap[k];
+        }
+      }
+
       // If donghuaworld is missing from providersMap, explicitly fetch it from /episodes/donghuaworld/${animeId}
       if (!providersMap["donghuaworld"]) {
         try {
@@ -137,13 +147,6 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
           }
         } catch (e) {
           console.warn("[get-all-episodes] Direct fetch of donghuaworld failed:", e);
-        }
-      }
-
-      // STRICT DONGHUA RESTRICTION: remove all non-donghuaworld providers
-      for (const k of Object.keys(providersMap)) {
-        if (k !== "donghuaworld") {
-          delete providersMap[k];
         }
       }
     } else {

@@ -6,13 +6,36 @@ import {
   WATCH_TTL,
 } from "../core/smartcache.js";
 import { getMedia } from "../core/anilist.js";
+import { wreqFetch } from "../core/wreq.js";
 
 const BASE = "https://donghuaworld.com";
 const H = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
   "Referer": `${BASE}/`,
 };
+
+export async function smartFetch(url, options = {}) {
+  const mergedHeaders = {
+    ...H,
+    ...(options.headers || {}),
+  };
+  try {
+    const res = await wreqFetch(url, {
+      ...options,
+      headers: mergedHeaders,
+      browser: "chrome_149",
+      os: "windows",
+    });
+    if (res && res.status !== 403) {
+      return res;
+    }
+  } catch {
+    // Fall back to native fetch
+  }
+  return fetch(url, { ...options, headers: mergedHeaders });
+}
 
 function stripTags(s) {
   return (s || "").replace(/<[^>]+>/g, "").trim();
@@ -42,7 +65,9 @@ export const KNOWN_SERIES_MAP = {
   131580: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 1
   142750: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 2
   152864: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 3
-  196613: `${BASE}/anime/battle-through-the-heavens-season-5/`, // BTTH Season 5
+  196613: `${BASE}/anime/battle-through-the-heavens-season-5/`, // BTTH Season 5 / Nian Fan 4
+  168164: `${BASE}/anime/battle-through-the-heavens-season-5/`, // BTTH Nian Fan 3
+  168163: `${BASE}/anime/battle-through-the-heavens-season-5/`, // BTTH Nian Fan 2
   131584: `${BASE}/anime/battle-through-the-heavens-season-4/`, // BTTH Season 4
   114123: `${BASE}/anime/battle-through-the-heavens-season-3/`, // BTTH Season 3
   107026: `${BASE}/anime/battle-through-the-heavens-season-2/`, // BTTH Season 2
@@ -144,7 +169,7 @@ export async function findSeriesUrl(anilistId, media) {
   for (const query of queries) {
     try {
       const searchUrl = `${BASE}/?s=${encodeURIComponent(query)}`;
-      const res = await fetch(searchUrl, { headers: H });
+      const res = await smartFetch(searchUrl);
       if (!res.ok) continue;
       const html = await res.text();
 
@@ -243,7 +268,7 @@ export async function getEpisodes(anilistId, ctx = {}) {
     throw new Error(`DonghuaWorld: Could not find series for AniList ID ${anilistId}`);
   }
 
-  const res = await fetch(seriesUrl, { headers: H });
+  const res = await smartFetch(seriesUrl);
   if (!res.ok) {
     throw new Error(`DonghuaWorld: HTTP ${res.status} fetching series ${seriesUrl}`);
   }
@@ -411,7 +436,7 @@ export async function handleWatch(anilistId, audio, epNum) {
   }
 
   try {
-    const res = await fetch(epUrl, { headers: H });
+    const res = await smartFetch(epUrl);
     if (!res.ok) {
       return json({ error: `DonghuaWorld: HTTP ${res.status} fetching episode page` }, res.status);
     }
@@ -449,9 +474,8 @@ export async function handleWatch(anilistId, audio, epNum) {
       // If it's the Dark Server (playing.donghuaworld.in), fetch and extract direct Rumble 4K HLS / MP4
       if (sUrl.includes("playing.donghuaworld") || lowerLabel.includes("dark")) {
         try {
-          const darkRes = await fetch(sUrl, {
+          const darkRes = await smartFetch(sUrl, {
             headers: {
-              "User-Agent": H["User-Agent"],
               Referer: epUrl,
             },
           });

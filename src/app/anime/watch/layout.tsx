@@ -26,6 +26,7 @@ import useBookMarks from "@/hooks/use-get-bookmark";
 import { toast } from "sonner";
 import { useGetAllEpisodes } from "@/query/get-all-episodes";
 import CommentsSection from "@/components/comments/comments-section";
+import { isKnownDonghua } from "@/constants/donghua";
 
 type Props = {
   children: ReactNode;
@@ -134,17 +135,26 @@ const Layout = (props: Props) => {
     animeId as string,
   );
 
+  const isDonghua = isKnownDonghua(animeId, anime?.anime?.info);
+
   // Auto-resolve episode ID if only episode number (ep) is in query or if no valid episode parameter exists
   useEffect(() => {
     if (episodes?.episodes?.length) {
+      const isDhwEp = episodeId ? episodeId.includes("/donghuaworld/") : false;
+      const isInvalidForDonghua = isDonghua && episodeId && !isDhwEp;
       const isValidEpisodeId =
-        Boolean(episodeId) && episodes.episodes.some((e) => e.episodeId === episodeId);
+        !isInvalidForDonghua &&
+        Boolean(episodeId) &&
+        episodes.episodes.some((e) => e.episodeId === episodeId);
+
       if (isValidEpisodeId && episodeId) {
         setSelectedEpisode(episodeId);
       } else {
         const epNum = epNumberParam
           ? Number(epNumberParam)
-          : (episodeId && !isNaN(Number(episodeId)) ? Number(episodeId) : 1);
+          : (episodeId && !isNaN(Number(episodeId))
+            ? Number(episodeId)
+            : (episodeId ? Number(episodeId.split("-").pop()) || 1 : 1));
         const matchedEp =
           episodes.episodes.find((e) => e.number === epNum) ||
           (epNum > episodes.episodes[episodes.episodes.length - 1].number
@@ -161,7 +171,7 @@ const Layout = (props: Props) => {
         }
       }
     }
-  }, [episodes, episodeId, epNumberParam, setSelectedEpisode]);
+  }, [episodes, episodeId, epNumberParam, setSelectedEpisode, isDonghua]);
 
   if (isLoading) return <Loading />;
 

@@ -122,16 +122,18 @@ function providerFns(anilistId, status, ctx) {
 }
 
 export function isDonghuaMedia(media, anilistId) {
-  const idNum = Number(anilistId || media?.id);
+  const idNum = Number(anilistId || media?.id || media?.anilistId);
   if (idNum && KNOWN_SERIES_MAP[idNum]) return true;
   if (!media) return false;
   const co = String(media.countryOfOrigin || media.originatingCountry || "").toUpperCase();
   if (co === "CN") return true;
+  if (media.isDonghua === true) return true;
   if (Array.isArray(media.synonyms) && media.synonyms.some((s) => typeof s === "string" && s.toLowerCase().includes("donghua"))) return true;
   if (Array.isArray(media.genres) && media.genres.some((g) => typeof g === "string" && (g.toLowerCase() === "donghua" || g.toLowerCase() === "chinese animation"))) return true;
   if (Array.isArray(media.tags) && media.tags.some((t) => typeof t?.name === "string" && (t.name.toLowerCase() === "donghua" || t.name.toLowerCase().includes("chinese animation")))) return true;
-  const allText = `${media?.title?.native || ""} ${media?.title?.romaji || ""} ${media?.title?.english || ""} ${(media?.synonyms || []).join(" ")}`.toLowerCase();
+  const allText = `${media?.name || ""} ${media?.title?.native || ""} ${media?.title?.romaji || ""} ${media?.title?.english || ""} ${(media?.synonyms || []).join(" ")}`.toLowerCase();
   if (allText.includes("donghua") || allText.includes("nian fan")) return true;
+  if (/[\u4e00-\u9fa5]/.test(allText)) return true;
   return false;
 }
 
