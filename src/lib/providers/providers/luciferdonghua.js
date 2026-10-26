@@ -38,6 +38,9 @@ async function findSeriesUrl(anilistId, media) {
   }
 
   const isMovie = media?.format === "MOVIE";
+  const primaryTitle = candidateTitles[0] || "";
+  const seasonMatch = primaryTitle.match(/season\s*(\d+)/i) || primaryTitle.match(/(\d+)(?:st|nd|rd|th)\s*season/i) || primaryTitle.match(/\bS(\d+)\b/i);
+  const targetSeason = seasonMatch ? Number(seasonMatch[1]) : null;
 
   for (const query of queries) {
     try {
@@ -46,28 +49,69 @@ async function findSeriesUrl(anilistId, media) {
       if (!res.ok) continue;
       const html = await res.text();
 
-      // Find series links: <a href="https://luciferdonghua.in/anime/{slug}/" ...>
-      const animeMatches = Array.from(html.matchAll(/<a\s+href="(https:\/\/luciferdonghua\.in\/anime\/[^"/]+\/)"[^>]*title="([^"]*)"/gi));
-      // Filter out unwanted aggregator links like /anime/lucifer-donghua/
-      const filteredMatches = animeMatches.filter(([, url]) => !url.includes("lucifer-donghua"));
+      // Find series links and titles from article cards or link tags
+      const articles = [];
+      const articleMatches = Array.from(html.matchAll(/<article[^>]*>([\s\S]*?)<\/article>/gi));
+      if (articleMatches.length > 0) {
+        for (const a of articleMatches) {
+          const linkMatch = a[1].match(/href=["'](https:\/\/luciferdonghua\.in\/anime\/[^"']+\/)["']/i);
+          const titleMatch = a[1].match(/itemprop=["']headline["']>([^<]*)<\/h2>/i) || a[1].match(/title=["']([^"']*)["']/i);
+          if (linkMatch && !linkMatch[1].includes("lucifer-donghua")) {
+            articles.push({ link: linkMatch[1], title: titleMatch ? decodeEntities(titleMatch[1].trim()) : "" });
+          }
+        }
+      }
+      if (!articles.length) {
+        const rawLinks = Array.from(html.matchAll(/href=["'](https:\/\/luciferdonghua\.in\/anime\/[^"'/]+\/)["']/gi));
+        for (const [, url] of rawLinks) {
+          if (!url.includes("lucifer-donghua") && !articles.some((a) => a.link === url)) {
+            articles.push({ link: url, title: "" });
+          }
+        }
+      }
 
-      if (filteredMatches.length > 0) {
+      if (articles.length > 0) {
         let bestUrl = null;
+        let bestScore = -999;
 
-        if (isMovie) {
-          // If media is a movie, prefer matches with "movie"
-          const movieMatch = filteredMatches.find(([, , title]) => {
-            const lower = title.toLowerCase();
-            return lower.includes("movie") || lower.includes("juchang ban");
-          });
-          bestUrl = movieMatch ? movieMatch[1] : filteredMatches[0][1];
-        } else {
-          // If TV series, deprioritize matches with "movie", "special", "battle of gods"
-          const seriesMatch = filteredMatches.find(([, , title]) => {
-            const lower = title.toLowerCase();
-            return !lower.includes("movie") && !lower.includes("juchang ban") && !lower.includes("slaying the blood");
-          });
-          bestUrl = seriesMatch ? seriesMatch[1] : filteredMatches[0][1];
+        for (const item of articles) {
+          const lowerTitle = (item.title || "").toLowerCase();
+          const lowerLink = item.link.toLowerCase();
+
+          if (isMovie) {
+            if (lowerTitle.includes("movie") || lowerLink.includes("movie") || lowerTitle.includes("juchang ban")) {
+              bestUrl = item.link;
+              break;
+            }
+          } else {
+            // Deprioritize movies for series
+            if (lowerTitle.includes("movie") || lowerLink.includes("movie") || lowerTitle.includes("juchang ban")) continue;
+          }
+
+          let score = 0;
+          const itemSeasonMatch = lowerTitle.match(/season\s*(\d+)/i) || lowerLink.match(/season-(\d+)/i);
+          const itemSeason = itemSeasonMatch ? Number(itemSeasonMatch[1]) : (lowerTitle.includes("season 1") ? 1 : null);
+
+          if (targetSeason !== null) {
+            if (itemSeason === targetSeason) {
+              score += 50;
+            } else if (itemSeason !== null) {
+              score -= 40;
+            }
+          } else {
+            if (itemSeason === 1 || itemSeason === null) {
+              score += 10;
+            }
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestUrl = item.link;
+          }
+        }
+
+        if (!bestUrl && articles[0]?.link) {
+          bestUrl = articles[0].link;
         }
 
         if (bestUrl) {

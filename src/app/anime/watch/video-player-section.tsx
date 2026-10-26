@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useGetAllEpisodes } from "@/query/get-all-episodes";
+import { useGetAnimeDetails } from "@/query/get-anime-details";
 import useBookMarks from "@/hooks/use-get-bookmark";
 import { useGetSourceAvailable } from "@/query/get-source-available";
 import {
@@ -41,6 +42,7 @@ const VideoPlayerSection = () => {
   const { data: isSourceAvailable } = useGetSourceAvailable();
   const { data: allEpisodesData, isLoading: isLoadingEpisodes } =
     useGetAllEpisodes(animeIdParam);
+  const { data: directAnimeDetails } = useGetAnimeDetails(animeIdParam);
 
   const [localProxyActive, setLocalProxyActive] = useState<boolean>(false);
 
@@ -142,11 +144,16 @@ const VideoPlayerSection = () => {
     return (
       currentProviderName.toLowerCase() === "luciferdonghua" ||
       anime?.anime?.info?.countryOfOrigin === "CN" ||
+      directAnimeDetails?.anime?.info?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.rawResponse as any)?.isDonghua === true ||
       (allEpisodesData?.availableProviders || []).includes("luciferdonghua")
     );
   }, [
     currentProviderName,
     anime?.anime?.info?.countryOfOrigin,
+    directAnimeDetails?.anime?.info?.countryOfOrigin,
+    allEpisodesData?.rawResponse,
     allEpisodesData?.availableProviders,
   ]);
 
@@ -412,7 +419,7 @@ const VideoPlayerSection = () => {
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      {isFallbackActive || !episodeData ? (
+      {isFallbackActive || (!isDonghua && !episodeData) ? (
         <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
           <iframe
             key={`${fallbackAnimeId}-${fallbackEpId}-${activeCategory}`}
@@ -435,13 +442,21 @@ const VideoPlayerSection = () => {
             className="w-full h-full border-0"
           ></iframe>
         </div>
+      ) : isDonghua && !currentDonghuaSource ? (
+        <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-slate-950 flex flex-col items-center justify-center rounded-xl border border-slate-800 p-6 text-center">
+          <AlertCircle className="h-10 w-10 text-amber-400 mb-3" />
+          <h3 className="text-lg font-semibold text-white">Donghua Stream Unavailable</h3>
+          <p className="text-sm text-gray-400 max-w-md mt-1">
+            Loading streams from LuciferDonghua. If this persists, please try switching servers or another episode.
+          </p>
+        </div>
       ) : (
         <KitsunePlayer
-          key={`${activeEpisodeId}-${currentDonghuaSource?.url || episodeData.sources?.[0]?.url}`}
+          key={`${activeEpisodeId}-${currentDonghuaSource?.url || episodeData?.sources?.[0]?.url}`}
           episodeInfo={
             isDonghua && currentDonghuaSource
-              ? { ...episodeData, sources: [currentDonghuaSource] }
-              : episodeData
+              ? { ...episodeData!, sources: [currentDonghuaSource] }
+              : episodeData!
           }
           serversData={{
             episodeId: activeEpisodeId,

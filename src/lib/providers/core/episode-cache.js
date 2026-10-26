@@ -1,6 +1,6 @@
 import { forgetMedia, getMedia } from "./anilist.js";
 import { mapAnimeIds } from "./mapper.js";
-import { buildEpisodesWithCache, buildFilteredEpisodesWithCache } from "./episode-strategy.js";
+import { buildEpisodesWithCache, buildFilteredEpisodesWithCache, isDonghuaMedia } from "./episode-strategy.js";
 import { get, set, getAsync, setAsync, needsRefresh, delAsync, delByPrefixAsync } from "./smartcache.js";
 
 const ANIZIP = "https://api.ani.zip/mappings";
@@ -38,13 +38,19 @@ function latestEpisodeFromResponse(data) {
 }
 
 function hasCurrentProviders(data) {
-  return data &&
-    (Object.prototype.hasOwnProperty.call(data, "luciferdonghua") ||
-    (Object.prototype.hasOwnProperty.call(data, "anizone") &&
+  if (!data) return false;
+  const isDonghua = Boolean(data.isDonghua || data.countryOfOrigin === "CN");
+  if (isDonghua) {
+    return Object.prototype.hasOwnProperty.call(data, "luciferdonghua") && !data.luciferdonghua?.error;
+  }
+  return (
+    !Object.prototype.hasOwnProperty.call(data, "luciferdonghua") &&
+    Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
     Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
     Object.prototype.hasOwnProperty.call(data, "anipm") &&
-    !Object.prototype.hasOwnProperty.call(data, "anihq")));
+    !Object.prototype.hasOwnProperty.call(data, "anihq")
+  );
 }
 
 function latestEpisodeFromAniZip(anizip) {
@@ -61,12 +67,15 @@ function resolveShared(anilistId, freshMedia = false) {
 }
 
 async function clearProviderCache(anilistId, media) {
+  await delAsync(`episodes:match3:${anilistId}`);
+  await delAsync(`episodes:match4:${anilistId}`);
   for (const p of ["luciferdonghua", "pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
     await delAsync(`epv:${p}:${anilistId}`);
     if (p === "reanime" || p === "anikoto") {
       await delAsync(`epv:${p}:v2:${anilistId}`);
     }
     await delAsync(`epv:match2:${p}:${anilistId}`);
+    await delAsync(`epv:match3:${p}:${anilistId}`);
   }
   if (media?.idMal) {
     await delAsync(`jm:${media.idMal}`);
@@ -90,6 +99,8 @@ function buildActiveProvidersMap(providerResult) {
 async function buildResponse(anilistId, media, anizip, forceRefresh = false) {
   if (forceRefresh) await clearProviderCache(anilistId, media);
 
+  const isDonghua = isDonghuaMedia(media);
+
   const [providerResult, mappingResult] = await Promise.all([
     buildEpisodesWithCache(anilistId, media, anizip),
     mapAnimeIds(anilistId).catch(() => null),
@@ -99,6 +110,8 @@ async function buildResponse(anilistId, media, anizip, forceRefresh = false) {
   return {
     page: 1,
     type: "all",
+    countryOfOrigin: media?.countryOfOrigin ?? null,
+    isDonghua,
     mappings: {
       ...baseMappings,
       anilistId: Number(anilistId),
@@ -175,7 +188,7 @@ function scheduleRefresh(anilistId, entry, env) {
 
     const result = await buildResponse(anilistId, media, anizip, true);
     const latestEpisode = latestEpisodeFromResponse(result);
-    await setAsync(`episodes:match3:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
+    await setAsync(`episodes:match4:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
     writeSyncState(anilistId, {
       lastProbeAt: Date.now(),
       lastSyncAt: Date.now(),
@@ -200,7 +213,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match3:${anilistId}`;
+  const cacheKey = `episodes:match4:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

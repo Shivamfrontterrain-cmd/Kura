@@ -121,15 +121,24 @@ function providerFns(anilistId, status, ctx) {
   };
 }
 
+export function isDonghuaMedia(media) {
+  if (!media) return false;
+  const co = String(media.countryOfOrigin || "").toUpperCase();
+  if (co === "CN") return true;
+  if (Array.isArray(media.synonyms) && media.synonyms.some((s) => typeof s === "string" && s.toLowerCase().includes("donghua"))) return true;
+  if (Array.isArray(media.genres) && media.genres.some((g) => typeof g === "string" && g.toLowerCase() === "donghua")) return true;
+  return false;
+}
+
 export async function buildFilteredEpisodesWithCache(anilistId, providers, media, anizip) {
   const status = media?.status ?? "RELEASING";
   const ctx  = { media, anizip, maxPages: undefined };
 
   // DONGHUA: For Chinese anime, strictly use only luciferdonghua
-  const isDonghua = media?.countryOfOrigin === "CN";
+  const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match2:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+      withCache(`epv:match3:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
     );
     return {
       luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },
@@ -153,10 +162,10 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const ctx = { media, anizip, maxPages: undefined };
 
   // DONGHUA: For Chinese anime, strictly use only luciferdonghua
-  const isDonghua = media?.countryOfOrigin === "CN";
+  const isDonghua = isDonghuaMedia(media);
   if (isDonghua) {
     const ld = await safe("luciferdonghua", () =>
-      withCache(`epv:match2:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
+      withCache(`epv:match3:luciferdonghua:${anilistId}`, status, () => luciferdonghuaEpisodes(anilistId, ctx))
     );
     return {
       luciferdonghua: ld.ok ? ld.data : { error: ld.error, stack: ld.stack },
