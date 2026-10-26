@@ -41,7 +41,6 @@ const MEDIA_LIST_FRAGMENT = `
       english
       native
     }
-    synonyms
     coverImage {
       large
       extraLarge
@@ -171,19 +170,11 @@ export async function anilistQuery<T = any>(
 }
 
 export function normalizeMediaList(raw: any): MediaList {
-  let englishTitle = raw?.title?.english || null;
-  if (!englishTitle && raw?.countryOfOrigin === "CN" && Array.isArray(raw?.synonyms)) {
-    const englishSynonym = raw.synonyms.find(
-      (s: any) => typeof s === "string" && /^[a-zA-Z0-9\s:,\-\'\"\!\?]+$/.test(s.trim()) && !/^\s*donghua/i.test(s) && s.trim().length > 3
-    );
-    if (englishSynonym) englishTitle = englishSynonym;
-  }
-
   return {
     id: Number(raw?.id) || 0,
     title: {
-      romaji: raw?.title?.romaji || englishTitle || "Untitled",
-      english: englishTitle,
+      romaji: raw?.title?.romaji || raw?.title?.english || "Untitled",
+      english: raw?.title?.english || null,
       native: raw?.title?.native || null,
     },
     coverImage: {
@@ -205,7 +196,6 @@ export function normalizeMediaList(raw: any): MediaList {
     genres: Array.isArray(raw?.genres) ? raw.genres : [],
     source: raw?.source || null,
     countryOfOrigin: raw?.countryOfOrigin || "JP",
-    synonyms: Array.isArray(raw?.synonyms) ? raw.synonyms : [],
     isAdult: Boolean(raw?.isAdult),
     studios: {
       nodes: Array.isArray(raw?.studios?.nodes) ? raw.studios.nodes : [],

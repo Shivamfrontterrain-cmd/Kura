@@ -134,23 +134,15 @@ const Layout = (props: Props) => {
     animeId as string,
   );
 
-  // Auto-resolve episode ID if only episode number (ep) is in query or if no valid episode parameter exists
+  // Auto-resolve episode ID if only episode number (ep) is in query or if no episode parameter exists
   useEffect(() => {
     if (episodes?.episodes?.length) {
-      const isValidEpisodeId =
-        Boolean(episodeId) && episodes.episodes.some((e) => e.episodeId === episodeId);
-      if (isValidEpisodeId && episodeId) {
+      if (episodeId) {
         setSelectedEpisode(episodeId);
       } else {
-        const epNum = epNumberParam
-          ? Number(epNumberParam)
-          : (episodeId && !isNaN(Number(episodeId)) ? Number(episodeId) : 1);
+        const epNum = epNumberParam ? Number(epNumberParam) : 1;
         const matchedEp =
-          episodes.episodes.find((e) => e.number === epNum) ||
-          (epNum > episodes.episodes[episodes.episodes.length - 1].number
-            ? episodes.episodes[episodes.episodes.length - 1]
-            : null) ||
-          episodes.episodes[0];
+          episodes.episodes.find((e) => e.number === epNum) || episodes.episodes[0];
         if (matchedEp?.episodeId) {
           setSelectedEpisode(matchedEp.episodeId);
           if (typeof window !== "undefined") {

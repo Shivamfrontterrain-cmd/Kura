@@ -6,8 +6,6 @@ import { EpisodeResponse, NextAiringEpisode } from "@/types/miruro-api";
 import { useQuery } from "@tanstack/react-query";
 
 const KNOWN_PROVIDERS = [
-  "donghuastream",
-  "luciferdonghua",
   "anizone",
   "reanime",
   "anikoto",
@@ -123,40 +121,6 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
       const idxB = KNOWN_PROVIDERS.indexOf(b);
       return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
     });
-
-    // If donghuastream or luciferdonghua is present (Donghua), strictly use it to avoid mixing with other sites!
-    const donghuaKey = providersMap["donghuastream"]
-      ? "donghuastream"
-      : providersMap["luciferdonghua"]
-        ? "luciferdonghua"
-        : null;
-
-    if (donghuaKey) {
-      const ldEpisodes = providersMap[donghuaKey]?.episodes?.sub || [];
-      const episodeList: Episode[] = ldEpisodes.map((ep: any) => ({
-        title: ep.title || `Episode ${ep.number}`,
-        episodeId: ep.id || `${ep.number}`,
-        number: Number(ep.number),
-        isFiller: Boolean(ep.filler),
-        hasSub: true,
-        hasDub: false,
-      }));
-      episodeList.sort((a, b) => a.number - b.number);
-
-      const normalizedRawResponse: EpisodeResponse = {
-        ...data,
-        mappings: data.mappings || { anilistId: Number(animeId) },
-        providers: { [donghuaKey]: providersMap[donghuaKey] },
-      };
-
-      return {
-        totalEpisodes: episodeList.length,
-        episodes: episodeList,
-        rawResponse: normalizedRawResponse,
-        availableProviders: [donghuaKey],
-        nextAiringEpisode: data.mappings?.nextAiringEpisode || null,
-      };
-    }
 
     const subEpNumbers = new Set<number>();
     const dubEpNumbers = new Set<number>();

@@ -8,16 +8,7 @@ const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
   const res = await api.get<MediaFull>(`/info/${animeId}`);
   const media = res.data;
 
-  let title = media.title?.english;
-  if (!title && media.countryOfOrigin === "CN" && Array.isArray(media.synonyms)) {
-    const englishSynonym = media.synonyms.find(
-      (s: any) => typeof s === "string" && /^[a-zA-Z0-9\s:,\-\'\"\!\?]+$/.test(s.trim()) && !/^\s*donghua/i.test(s) && s.trim().length > 3
-    );
-    if (englishSynonym) title = englishSynonym;
-  }
-  if (!title) {
-    title = media.title?.romaji || media.title?.native || "Untitled";
-  }
+  const title = media.title?.english || media.title?.romaji || media.title?.native || "Untitled";
   const poster = media.coverImage?.extraLarge || media.coverImage?.large || "";
 
   const charactersVoiceActors = (media.characters?.edges || [])
@@ -99,7 +90,6 @@ const getAnimeDetails = async (animeId: string): Promise<IAnimeDetails> => {
         poster: poster,
         bannerImage: media.bannerImage || media.coverImage?.extraLarge || "",
         description: media.description || "",
-        countryOfOrigin: media.countryOfOrigin,
         stats: {
           rating: media.averageScore ? `${media.averageScore}%` : "N/A",
           quality: "HD",

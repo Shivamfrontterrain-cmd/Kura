@@ -23,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { useGetAllEpisodes } from "@/query/get-all-episodes";
-import { useGetAnimeDetails } from "@/query/get-anime-details";
 import useBookMarks from "@/hooks/use-get-bookmark";
 import { useGetSourceAvailable } from "@/query/get-source-available";
 import {
@@ -42,7 +41,6 @@ const VideoPlayerSection = () => {
   const { data: isSourceAvailable } = useGetSourceAvailable();
   const { data: allEpisodesData, isLoading: isLoadingEpisodes } =
     useGetAllEpisodes(animeIdParam);
-  const { data: directAnimeDetails } = useGetAnimeDetails(animeIdParam);
 
   const [localProxyActive, setLocalProxyActive] = useState<boolean>(false);
 
@@ -52,25 +50,16 @@ const VideoPlayerSection = () => {
 
   // Match episode number from ?ep= parameter if present
   const targetEpByNumber =
-    epParam && allEpisodesData?.episodes?.length
-      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam)) ||
-        (Number(epParam) > allEpisodesData.episodes[allEpisodesData.episodes.length - 1].number
-          ? allEpisodesData.episodes[allEpisodesData.episodes.length - 1]
-          : null)
+    epParam && allEpisodesData?.episodes
+      ? allEpisodesData.episodes.find((e) => e.number === Number(epParam))
       : null;
 
-  // Resolve active episode ID prioritizing a valid watch/ slug, targetEpByNumber, or first episode
-  const isSelectedEpValid =
-    Boolean(selectedEpisode) &&
-    (selectedEpisode.includes("watch/") ||
-      Boolean(allEpisodesData?.episodes?.some((e) => e.episodeId === selectedEpisode)));
-
+  // Resolve active episode ID prioritizing selectedEpisode or ?ep= parameter
   const activeEpisodeId =
-    (isSelectedEpValid ? selectedEpisode : null) ||
-    targetEpByNumber?.episodeId ||
-    (episodeIdParam && episodeIdParam.includes("watch/") ? episodeIdParam : null) ||
-    allEpisodesData?.episodes?.[0]?.episodeId ||
     selectedEpisode ||
+    targetEpByNumber?.episodeId ||
+    episodeIdParam ||
+    allEpisodesData?.episodes?.[0]?.episodeId ||
     "";
 
   // Sync selectedEpisode in store when ?ep= parameter changes
@@ -149,32 +138,6 @@ const VideoPlayerSection = () => {
   const activeCategory: "sub" | "dub" =
     cleanParts[3] === "dub" ? "dub" : preferredCategory;
 
-  const isDonghua = React.useMemo(() => {
-    return (
-      currentProviderName.toLowerCase() === "donghuastream" ||
-      currentProviderName.toLowerCase() === "luciferdonghua" ||
-      anime?.anime?.info?.countryOfOrigin === "CN" ||
-      directAnimeDetails?.anime?.info?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.rawResponse as any)?.isDonghua === true ||
-      (allEpisodesData?.availableProviders || []).includes("donghuastream") ||
-      (allEpisodesData?.availableProviders || []).includes("luciferdonghua")
-    );
-  }, [
-    currentProviderName,
-    anime?.anime?.info?.countryOfOrigin,
-    directAnimeDetails?.anime?.info?.countryOfOrigin,
-    allEpisodesData?.rawResponse,
-    allEpisodesData?.availableProviders,
-  ]);
-
-  const [activeDonghuaServerIndex, setActiveDonghuaServerIndex] =
-    useState<number>(0);
-
-  useEffect(() => {
-    setActiveDonghuaServerIndex(0);
-  }, [activeEpisodeId]);
-
   const parsedEpFromSlug = cleanParts[4]
     ? Number(cleanParts[4].split("-").pop())
     : NaN;
@@ -192,8 +155,7 @@ const VideoPlayerSection = () => {
 
   // Synchronize activeEpisodeId category with preferredCategory ("sub" or "dub")
   useEffect(() => {
-    if (!providerNames.length || !activeEpisodeId.includes("watch/") || isDonghua)
-      return;
+    if (!providerNames.length || !activeEpisodeId.includes("watch/")) return;
 
     const slugCategory = cleanParts[3] === "dub" ? "dub" : "sub";
     if (slugCategory !== preferredCategory) {
@@ -215,20 +177,11 @@ const VideoPlayerSection = () => {
     rawProviders,
     activeEpisodeId,
     cleanParts,
-    isDonghua,
     setSelectedEpisode,
   ]);
 
   // Try next available provider when current provider fails or returns 0 streams
   const tryNextProviderOrFallback = React.useCallback(() => {
-    if (isDonghua) {
-      const srcCount = episodeData?.sources?.length || 0;
-      if (srcCount > 1) {
-        setActiveDonghuaServerIndex((prev) => (prev + 1) % srcCount);
-      }
-      return;
-    }
-
     const nextFailed = new Set(failedEpisodeIds);
     if (activeEpisodeId) nextFailed.add(activeEpisodeId);
     setFailedEpisodeIds(nextFailed);
@@ -245,8 +198,6 @@ const VideoPlayerSection = () => {
     }
     setUseFallback(true);
   }, [
-    isDonghua,
-    episodeData?.sources?.length,
     failedEpisodeIds,
     activeEpisodeId,
     providerNames,
@@ -259,7 +210,6 @@ const VideoPlayerSection = () => {
   // Auto-advance if non-loading episodeData returned 0 playable sources
   useEffect(() => {
     if (
-      !isDonghua &&
       !useFallback &&
       !isLoadingData &&
       activeEpisodeId.includes("watch/") &&
@@ -269,7 +219,6 @@ const VideoPlayerSection = () => {
       tryNextProviderOrFallback();
     }
   }, [
-    isDonghua,
     useFallback,
     isLoadingData,
     activeEpisodeId,
@@ -278,10 +227,9 @@ const VideoPlayerSection = () => {
   ]);
 
   const isFallbackActive =
-    !isDonghua &&
-    (useFallback ||
-      !activeEpisodeId.includes("watch/") ||
-      (!isLoadingData && (!episodeData || !episodeData.sources?.length)));
+    useFallback ||
+    !activeEpisodeId.includes("watch/") ||
+    (!isLoadingData && (!episodeData || !episodeData.sources?.length));
 
   // Listen to postMessage events from Fallback Player iframe (megaplay.buzz)
   useEffect(() => {
@@ -422,15 +370,9 @@ const VideoPlayerSection = () => {
   const fallbackEpId = currentEpNumber || "1";
   const fallbackSrc = `https://megaplay.buzz/stream/ani/${fallbackAnimeId}/${fallbackEpId}/${activeCategory}`;
 
-  const availableSources = episodeData?.sources || [];
-  const currentDonghuaSource =
-    isDonghua && availableSources[activeDonghuaServerIndex]
-      ? availableSources[activeDonghuaServerIndex]
-      : availableSources[0];
-
   return (
     <div className="flex flex-col gap-3 w-full">
-      {isFallbackActive || (!isDonghua && !episodeData) ? (
+      {isFallbackActive || !episodeData ? (
         <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
           <iframe
             key={`${fallbackAnimeId}-${fallbackEpId}-${activeCategory}`}
@@ -441,52 +383,21 @@ const VideoPlayerSection = () => {
             className="w-full h-full border-0"
           ></iframe>
         </div>
-      ) : isDonghua && currentDonghuaSource?.type === "embed" ? (
-        <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
-          <iframe
-            key={`${activeEpisodeId}-${currentDonghuaSource.url}`}
-            src={currentDonghuaSource.url}
-            width="100%"
-            height="100%"
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope; accelerometer"
-            className="w-full h-full border-0"
-          ></iframe>
-        </div>
-      ) : isDonghua && !currentDonghuaSource ? (
-        <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-slate-950 flex flex-col items-center justify-center rounded-xl border border-slate-800 p-6 text-center">
-          <AlertCircle className="h-10 w-10 text-amber-400 mb-3" />
-          <h3 className="text-lg font-semibold text-white">Donghua Stream Unavailable</h3>
-          <p className="text-sm text-gray-400 max-w-md mt-1">
-            Loading streams from DonghuaStream. If this persists, please try switching servers or another episode.
-          </p>
-        </div>
       ) : (
         <KitsunePlayer
-          key={`${activeEpisodeId}-${currentDonghuaSource?.url || episodeData?.sources?.[0]?.url}`}
-          episodeInfo={
-            isDonghua && currentDonghuaSource
-              ? { ...episodeData!, sources: [currentDonghuaSource] }
-              : episodeData!
-          }
+          key={`${activeEpisodeId}-${episodeData.sources?.[0]?.url}`}
+          episodeInfo={episodeData}
           serversData={{
             episodeId: activeEpisodeId,
             episodeNo: String(currentEpNumber),
-            sub: isDonghua
-              ? availableSources.map((s, idx) => ({
-                  serverId: idx + 1,
-                  serverName: s.server || `Server ${idx + 1}`,
-                }))
-              : subProvidersForEp.map((p, idx) => ({
-                  serverId: idx + 1,
-                  serverName: p,
-                })),
-            dub: isDonghua
-              ? []
-              : dubProvidersForEp.map((p, idx) => ({
-                  serverId: idx + 1,
-                  serverName: p,
-                })),
+            sub: subProvidersForEp.map((p, idx) => ({
+              serverId: idx + 1,
+              serverName: p,
+            })),
+            dub: dubProvidersForEp.map((p, idx) => ({
+              serverId: idx + 1,
+              serverName: p,
+            })),
             raw: [],
           }}
           animeInfo={{
@@ -494,7 +405,7 @@ const VideoPlayerSection = () => {
             title: anime?.anime?.info?.name || "Anime",
             image: anime?.anime?.info?.poster || "",
           }}
-          subOrDub={isDonghua ? "sub" : activeCategory}
+          subOrDub={activeCategory}
           autoSkip={autoSkip}
           onError={tryNextProviderOrFallback}
         />
@@ -502,95 +413,64 @@ const VideoPlayerSection = () => {
 
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full p-5 bg-[#0f172a] border border-slate-800 rounded-xl">
         <div className="flex flex-col gap-3 w-full md:w-auto">
-          {isDonghua ? (
-            availableSources.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <Tv className="text-red-400 h-4 w-4 shrink-0" />
-                <p className="font-bold text-xs text-gray-300 tracking-wider">
-                  SERVERS:
-                </p>
-                {availableSources.map((src, idx) => {
-                  const isActive = activeDonghuaServerIndex === idx;
+          {subProvidersForEp.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Captions className="text-red-400 h-4 w-4 shrink-0" />
+              <p className="font-bold text-xs text-gray-300 tracking-wider">
+                SERVERS (SUB):
+              </p>
+              {subProvidersForEp.map((pName) => {
+                const isActive =
+                  !isFallbackActive &&
+                  currentProviderName.toLowerCase() === pName.toLowerCase() &&
+                  activeCategory === "sub";
 
-                  return (
-                    <Button
-                      size="sm"
-                      key={`donghua-srv-${src.server || idx}`}
-                      className={`uppercase font-bold text-xs px-3 transition-all ${
-                        isActive
-                          ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
-                          : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
-                      }`}
-                      onClick={() => setActiveDonghuaServerIndex(idx)}
-                    >
-                      {src.server || `Server ${idx + 1}`}
-                    </Button>
-                  );
-                })}
-              </div>
-            )
-          ) : (
-            <>
-              {subProvidersForEp.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <Captions className="text-red-400 h-4 w-4 shrink-0" />
-                  <p className="font-bold text-xs text-gray-300 tracking-wider">
-                    SERVERS (SUB):
-                  </p>
-                  {subProvidersForEp.map((pName) => {
-                    const isActive =
-                      !isFallbackActive &&
-                      currentProviderName.toLowerCase() === pName.toLowerCase() &&
-                      activeCategory === "sub";
+                return (
+                  <Button
+                    size="sm"
+                    key={`sub-${pName}`}
+                    className={`uppercase font-bold text-xs px-3 transition-all ${
+                      isActive
+                        ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
+                        : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
+                    }`}
+                    onClick={() => handleProviderSelect(pName, "sub")}
+                  >
+                    {pName}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
 
-                    return (
-                      <Button
-                        size="sm"
-                        key={`sub-${pName}`}
-                        className={`uppercase font-bold text-xs px-3 transition-all ${
-                          isActive
-                            ? "bg-[#e9376b] text-white shadow-md ring-2 ring-[#e9376b]/40 scale-105"
-                            : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
-                        }`}
-                        onClick={() => handleProviderSelect(pName, "sub")}
-                      >
-                        {pName}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
+          {dubProvidersForEp.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2.5">
+              <Mic className="text-green-400 h-4 w-4 shrink-0" />
+              <p className="font-bold text-xs text-gray-300 tracking-wider">
+                SERVERS (DUB):
+              </p>
+              {dubProvidersForEp.map((pName) => {
+                const isActive =
+                  !isFallbackActive &&
+                  currentProviderName.toLowerCase() === pName.toLowerCase() &&
+                  activeCategory === "dub";
 
-              {dubProvidersForEp.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <Mic className="text-green-400 h-4 w-4 shrink-0" />
-                  <p className="font-bold text-xs text-gray-300 tracking-wider">
-                    SERVERS (DUB):
-                  </p>
-                  {dubProvidersForEp.map((pName) => {
-                    const isActive =
-                      !isFallbackActive &&
-                      currentProviderName.toLowerCase() === pName.toLowerCase() &&
-                      activeCategory === "dub";
-
-                    return (
-                      <Button
-                        size="sm"
-                        key={`dub-${pName}`}
-                        className={`uppercase font-bold text-xs px-3 transition-all ${
-                          isActive
-                            ? "bg-green-600 text-white shadow-md ring-2 ring-green-500/40 scale-105"
-                            : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
-                        }`}
-                        onClick={() => handleProviderSelect(pName, "dub")}
-                      >
-                        {pName}
-                      </Button>
-                    );
-                  })}
-                </div>
-              )}
-            </>
+                return (
+                  <Button
+                    size="sm"
+                    key={`dub-${pName}`}
+                    className={`uppercase font-bold text-xs px-3 transition-all ${
+                      isActive
+                        ? "bg-green-600 text-white shadow-md ring-2 ring-green-500/40 scale-105"
+                        : "bg-slate-800/80 text-gray-300 hover:bg-slate-700 hover:text-white"
+                    }`}
+                    onClick={() => handleProviderSelect(pName, "dub")}
+                  >
+                    {pName}
+                  </Button>
+                );
+              })}
+            </div>
           )}
         </div>
 
@@ -607,25 +487,23 @@ const VideoPlayerSection = () => {
               <ExternalLink className="h-3 w-3 opacity-75" />
             </a>
           )}
-          {!isDonghua && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                if (isFallbackActive && subProvidersForEp.length > 0) {
-                  handleProviderSelect(subProvidersForEp[0], "sub");
-                } else {
-                  setUseFallback(true);
-                }
-              }}
-              className="h-8 px-3 text-xs border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-gray-200 flex items-center gap-1.5"
-            >
-              <Tv className="h-3.5 w-3.5 text-yellow-400" />
-              {isFallbackActive && subProvidersForEp.length > 0
-                ? "Switch to Primary Player"
-                : "Switch to Fallback Player"}
-            </Button>
-          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (isFallbackActive && subProvidersForEp.length > 0) {
+                handleProviderSelect(subProvidersForEp[0], "sub");
+              } else {
+                setUseFallback(true);
+              }
+            }}
+            className="h-8 px-3 text-xs border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-gray-200 flex items-center gap-1.5"
+          >
+            <Tv className="h-3.5 w-3.5 text-yellow-400" />
+            {isFallbackActive && subProvidersForEp.length > 0
+              ? "Switch to Primary Player"
+              : "Switch to Fallback Player"}
+          </Button>
           {!isFallbackActive && (
             <div className="flex flex-row items-center space-x-2">
               <Switch
@@ -639,7 +517,7 @@ const VideoPlayerSection = () => {
         </div>
       </div>
 
-      {!isDonghua && isFallbackActive && (
+      {isFallbackActive && (
         <Alert
           variant="destructive"
           className="border-amber-800/80 bg-amber-950/40 text-amber-200 rounded-xl"

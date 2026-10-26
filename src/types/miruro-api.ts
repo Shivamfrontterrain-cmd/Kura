@@ -74,7 +74,6 @@ export interface MediaList {
   genres: string[];
   source: string | null;
   countryOfOrigin: string;
-  synonyms?: string[];
   isAdult: boolean;
   studios: {
     nodes: Studio[];
