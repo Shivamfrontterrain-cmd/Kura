@@ -1,15 +1,15 @@
 kuraanime.duckdns.org {
     # PocketBase Admin Dashboard
     @pb_admin {
-        path /_/*
-        not path /_next/*
+        path /_*
+        not path /_next*
     }
     handle @pb_admin {
         reverse_proxy pocketbase:8090
     }
 
     # PocketBase API endpoints
-    @pb_api path /api/collections/* /api/files/* /api/realtime* /api/admins/* /api/health* /api/batch* /api/settings*
+    @pb_api path /api/collections* /api/files* /api/realtime* /api/admins* /api/superusers* /api/settings* /api/logs* /api/backups* /api/batch* /api/cron*
     handle @pb_api {
         reverse_proxy pocketbase:8090
     }
