@@ -1,6 +1,6 @@
 import { forgetMedia, getMedia } from "./anilist.js";
 import { mapAnimeIds } from "./mapper.js";
-import { buildEpisodesWithCache, buildFilteredEpisodesWithCache } from "./episode-strategy.js";
+import { buildEpisodesWithCache, buildFilteredEpisodesWithCache, isDonghuaMedia } from "./episode-strategy.js";
 import { get, set, getAsync, setAsync, needsRefresh, delAsync, delByPrefixAsync } from "./smartcache.js";
 
 const ANIZIP = "https://api.ani.zip/mappings";
@@ -39,10 +39,27 @@ function latestEpisodeFromResponse(data) {
 
 function hasCurrentProviders(data) {
   if (!data) return false;
-  if (Object.prototype.hasOwnProperty.call(data, "donghuaworld") && !data.donghuaworld?.error) {
-    return true;
+  const isDonghua =
+    data.countryOfOrigin === "CN" ||
+    data.isDonghua === true ||
+    Object.prototype.hasOwnProperty.call(data, "donghuaworld");
+
+  if (isDonghua) {
+    // STRICT RESTRICTION: Donghua must have donghuaworld and ONLY donghuaworld!
+    const activeProviders = Object.keys(data.providers || {});
+    const hasOnlyDonghuaWorld =
+      activeProviders.length === 0 ||
+      (activeProviders.length === 1 && activeProviders[0] === "donghuaworld");
+    return (
+      Object.prototype.hasOwnProperty.call(data, "donghuaworld") &&
+      !data.donghuaworld?.error &&
+      hasOnlyDonghuaWorld
+    );
   }
+
+  // STRICT RESTRICTION: Non-Donghua anime must NOT have donghuaworld!
   return (
+    !Object.prototype.hasOwnProperty.call(data, "donghuaworld") &&
     Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
     Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
@@ -99,10 +116,13 @@ async function buildResponse(anilistId, media, anizip, forceRefresh = false) {
     mapAnimeIds(anilistId).catch(() => null),
   ]);
 
+  const isDonghua = isDonghuaMedia(media, anilistId);
   const baseMappings = mappingResult?.mappings ?? { id: Number(anilistId), anilistId: Number(anilistId) };
   return {
     page: 1,
     type: "all",
+    countryOfOrigin: media?.countryOfOrigin || (isDonghua ? "CN" : "JP"),
+    isDonghua,
     mappings: {
       ...baseMappings,
       anilistId: Number(anilistId),
@@ -179,7 +199,7 @@ function scheduleRefresh(anilistId, entry, env) {
 
     const result = await buildResponse(anilistId, media, anizip, true);
     const latestEpisode = latestEpisodeFromResponse(result);
-    await setAsync(`episodes:match3:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
+    await setAsync(`episodes:match10:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
     writeSyncState(anilistId, {
       lastProbeAt: Date.now(),
       lastSyncAt: Date.now(),
@@ -247,10 +267,13 @@ export async function getFilteredEpisodesResponse(anilistId, providers, includeM
     includeMap ? mapAnimeIds(anilistId).catch(() => null) : Promise.resolve(null),
   ]);
 
+  const isDonghua = isDonghuaMedia(media, anilistId);
   const baseMappings = mappingResult?.mappings ?? { id: Number(anilistId), anilistId: Number(anilistId) };
   return {
     page: 1,
     type: "filtered",
+    countryOfOrigin: media?.countryOfOrigin || (isDonghua ? "CN" : "JP"),
+    isDonghua,
     ...(includeMap
       ? {
           mappings: {

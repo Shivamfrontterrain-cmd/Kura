@@ -39,13 +39,20 @@ export function parseEpisodeRange(desc) {
  */
 export const KNOWN_SERIES_MAP = {
   166219: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 4
+  131580: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 1
+  142750: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 2
+  152864: `${BASE}/anime/swallowed-the-universe-warrior-of-galaxy/`, // Swallowed Star Season 3
   196613: `${BASE}/anime/battle-through-the-heavens-season-5/`, // BTTH Season 5
   131584: `${BASE}/anime/battle-through-the-heavens-season-4/`, // BTTH Season 4
+  114123: `${BASE}/anime/battle-through-the-heavens-season-3/`, // BTTH Season 3
+  107026: `${BASE}/anime/battle-through-the-heavens-season-2/`, // BTTH Season 2
+  98314: `${BASE}/anime/battle-through-the-heavens-season-1/`, // BTTH Season 1
   152636: `${BASE}/anime/renegade-immortal-xian-ni/`, // Renegade Immortal
   131518: `${BASE}/anime/soul-land/`, // Soul Land 1
   156360: `${BASE}/anime/soul-land-2-unrivaled-tang-sect-season-6/`, // Soul Land 2
   132405: `${BASE}/anime/perfect-world/`, // Perfect World
   150073: `${BASE}/anime/a-will-eternal-season-3/`, // A Will Eternal Season 2/3
+  120056: `${BASE}/anime/a-will-eternal/`, // A Will Eternal Season 1
   153070: `${BASE}/anime/shrouding-the-heavens/`, // Shrouding the Heavens
   160533: `${BASE}/anime/against-the-gods/`, // Against the Gods
   163262: `${BASE}/anime/martial-universe-season-4/`, // Martial Universe Season 4
@@ -53,6 +60,17 @@ export const KNOWN_SERIES_MAP = {
   143588: `${BASE}/anime/throne-of-seal/`, // Throne of Seal
   150336: `${BASE}/anime/jade-dynasty/`, // Jade Dynasty
   150337: `${BASE}/anime/stellar-transformation-season-5/`, // Stellar Transformation 5
+  120055: `${BASE}/anime/a-record-of-a-mortals-journey-to-immortality/`, // RMJI 1
+  142168: `${BASE}/anime/a-record-of-a-mortals-journey-to-immortality-season-2/`, // RMJI 2
+  160534: `${BASE}/anime/a-record-of-a-mortals-journey-to-immortality-season-3/`, // RMJI 3
+  115230: `${BASE}/anime/link-click/`, // Link Click 1
+  141352: `${BASE}/anime/link-click-season-2/`, // Link Click 2
+  101349: `${BASE}/anime/the-founder-of-diabolism/`, // Mo Dao Zu Shi 1
+  108605: `${BASE}/anime/the-founder-of-diabolism-season-2/`, // Mo Dao Zu Shi 2
+  116674: `${BASE}/anime/the-founder-of-diabolism-final-season/`, // Mo Dao Zu Shi 3
+  112151: `${BASE}/anime/heaven-officials-blessing/`, // TGCF 1
+  130545: `${BASE}/anime/heaven-officials-blessing-season-2/`, // TGCF 2
+  142646: `${BASE}/anime/one-hundred-thousand-years-of-qi-refining/`, // 100,000 Years of Qi Refining
 };
 
 /**

@@ -117,14 +117,38 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
       }
     }
 
-    // If donghuaworld is present (Donghua), strictly use it to avoid mixing with other sites!
-    const donghuaKey = providersMap["donghuaworld"] ? "donghuaworld" : null;
-    if (donghuaKey) {
+    // Strict Donghua detection and isolation:
+    // If it is Donghua, strictly and ONLY use donghuaworld! Never mix in Japanese providers!
+    const isDonghua =
+      Boolean(providersMap["donghuaworld"]) ||
+      data?.countryOfOrigin === "CN" ||
+      data?.isDonghua === true;
+
+    if (isDonghua) {
+      // If donghuaworld is missing from providersMap, explicitly fetch it from /episodes/donghuaworld/${animeId}
+      if (!providersMap["donghuaworld"]) {
+        try {
+          const dhwEndpoint = await resolveApiEndpoint(`/episodes/donghuaworld/${animeId}`);
+          const dhwRes: any = dhwEndpoint.startsWith("http")
+            ? await fetch(dhwEndpoint).then((r) => r.json())
+            : (await api.get(`/episodes/donghuaworld/${animeId}`)).data;
+          if (dhwRes?.donghuaworld && !dhwRes.donghuaworld.error) {
+            providersMap["donghuaworld"] = dhwRes.donghuaworld;
+          }
+        } catch (e) {
+          console.warn("[get-all-episodes] Direct fetch of donghuaworld failed:", e);
+        }
+      }
+
+      // STRICT DONGHUA RESTRICTION: remove all non-donghuaworld providers
       for (const k of Object.keys(providersMap)) {
-        if (k !== donghuaKey) {
+        if (k !== "donghuaworld") {
           delete providersMap[k];
         }
       }
+    } else {
+      // STRICT NON-DONGHUA RESTRICTION: remove donghuaworld
+      delete providersMap["donghuaworld"];
     }
 
     const providerNames = Object.keys(providersMap).sort((a, b) => {

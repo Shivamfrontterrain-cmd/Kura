@@ -49,6 +49,22 @@ const VideoPlayerSection = () => {
     detectLocalProxy().then(setLocalProxyActive);
   }, []);
 
+  const isDonghua = React.useMemo(() => {
+    return (
+      (anime?.anime?.info as any)?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
+      (allEpisodesData?.availableProviders || []).includes("donghuaworld") ||
+      (selectedEpisode || "").includes("/donghuaworld/") ||
+      (allEpisodesData?.episodes?.[0]?.episodeId || "").includes("/donghuaworld/")
+    );
+  }, [
+    anime?.anime?.info,
+    allEpisodesData?.rawResponse,
+    allEpisodesData?.availableProviders,
+    selectedEpisode,
+    allEpisodesData?.episodes,
+  ]);
+
   // Match episode number from ?ep= parameter if present (with clamp to latest available)
   const targetEpByNumber =
     epParam && allEpisodesData?.episodes?.length
@@ -74,7 +90,7 @@ const VideoPlayerSection = () => {
     const selEpNum = parts[4] ? Number(parts[4].split("-").pop()) : Number(selectedEpisode);
     if (!selectedEpisode || selEpNum !== targetEpByNumber.number) {
       const providers = allEpisodesData?.rawResponse?.providers || {};
-      const curProv = parts[1];
+      const curProv = isDonghua ? "donghuaworld" : parts[1];
       const curCat = (parts[3] === "dub" ? "dub" : "sub") as "sub" | "dub";
       const matchInCurProv = curProv
         ? providers[curProv]?.episodes?.[curCat]?.find(
@@ -90,6 +106,7 @@ const VideoPlayerSection = () => {
     selectedEpisode,
     allEpisodesData?.rawResponse?.providers,
     setSelectedEpisode,
+    isDonghua,
   ]);
 
   const [useFallback, setUseFallback] = useState<boolean>(false);
@@ -142,20 +159,6 @@ const VideoPlayerSection = () => {
   const currentProviderName = cleanParts[1] || providerNames[0] || "";
   const activeCategory: "sub" | "dub" =
     cleanParts[3] === "dub" ? "dub" : preferredCategory;
-
-  const isDonghua = React.useMemo(() => {
-    return (
-      currentProviderName.toLowerCase() === "donghuaworld" ||
-      (anime?.anime?.info as any)?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.availableProviders || []).includes("donghuaworld")
-    );
-  }, [
-    currentProviderName,
-    (anime?.anime?.info as any)?.countryOfOrigin,
-    allEpisodesData?.rawResponse,
-    allEpisodesData?.availableProviders,
-  ]);
 
   const [selectedDonghuaServer, setSelectedDonghuaServer] = useState<string>("");
 
@@ -226,11 +229,16 @@ const VideoPlayerSection = () => {
 
   // Try next available provider when current provider fails or returns 0 streams
   const tryNextProviderOrFallback = React.useCallback(() => {
+    if (isDonghua) {
+      // DONGHUA RESTRICTION: never switch to non-donghua providers!
+      return;
+    }
     const nextFailed = new Set(failedEpisodeIds);
     if (activeEpisodeId) nextFailed.add(activeEpisodeId);
     setFailedEpisodeIds(nextFailed);
 
     for (const pName of providerNames) {
+      if (pName === "donghuaworld") continue;
       const pData = rawProviders[pName]?.episodes?.[activeCategory] || [];
       const candidate = pData.find(
         (ep: any) => Number(ep.number) === currentEpNumber,
@@ -242,6 +250,7 @@ const VideoPlayerSection = () => {
     }
     setUseFallback(true);
   }, [
+    isDonghua,
     failedEpisodeIds,
     activeEpisodeId,
     providerNames,
@@ -433,11 +442,13 @@ const VideoPlayerSection = () => {
 
   const fallbackAnimeId = animeIdParam || anime?.anime?.info?.id || "1";
   const fallbackEpId = currentEpNumber || "1";
-  const fallbackSrc = `https://megaplay.buzz/stream/ani/${fallbackAnimeId}/${fallbackEpId}/${activeCategory}`;
+  const fallbackSrc = isDonghua
+    ? ""
+    : `https://megaplay.buzz/stream/ani/${fallbackAnimeId}/${fallbackEpId}/${activeCategory}`;
 
   return (
     <div className="flex flex-col gap-3 w-full">
-      {isFallbackActive || (!episodeData && !hasDonghuaStream) ? (
+      {isFallbackActive && !isDonghua ? (
         <div className="relative w-full h-auto aspect-video min-h-[20vh] sm:min-h-[30vh] md:min-h-[40vh] lg:min-h-[60vh] max-h-[500px] lg:max-h-[calc(100vh-150px)] bg-black overflow-hidden rounded-xl border border-slate-800">
           <iframe
             key={`${fallbackAnimeId}-${fallbackEpId}-${activeCategory}`}
@@ -657,7 +668,7 @@ const VideoPlayerSection = () => {
         </div>
       </div>
 
-      {isFallbackActive && (
+      {isFallbackActive && !isDonghua && (
         <Alert
           variant="destructive"
           className="border-amber-800/80 bg-amber-950/40 text-amber-200 rounded-xl"

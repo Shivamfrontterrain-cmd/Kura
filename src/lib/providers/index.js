@@ -12,9 +12,9 @@ import kaaHandler                  from "./providers/kickassanime.js";
 import animedunyaHandler           from "./providers/animedunya.js";
 import animeonsenHandler           from "./providers/animeonsen.js";
 import anipmHandler                from "./providers/anipm.js";
-import donghuaworldHandler        from "./providers/donghuaworld.js";
+import donghuaworldHandler, { KNOWN_SERIES_MAP } from "./providers/donghuaworld.js";
 import { getEpisodesResponse, getFilteredEpisodesResponse } from "./core/episode-cache.js";
-import { resolveProviders }         from "./core/episode-strategy.js";
+import { resolveProviders, isDonghuaMedia } from "./core/episode-strategy.js";
 import { getAsync, setAsync, isFresh, mapTTL, WATCH_TTL, _CACHE_ENABLED } from "./core/smartcache.js";
 
 function json(data, status = 200) {
@@ -254,6 +254,20 @@ export default {
         return json(await getEpisodesResponse(anilistId, env));
       } catch (e) {
         return json({ error: e.message }, 500);
+      }
+    }
+
+    // Strict Donghua Watch Interceptor:
+    // If a request targets a known Donghua through an old or non-donghuaworld provider route,
+    // intercept and route it directly to donghuaworld!
+    const watchMatch = path.match(/^\/watch\/([a-z0-9_-]+)\/(\d+)\/(sub|dub)\/([a-z0-9_-]+)-(\d+)\/?$/i);
+    if (watchMatch) {
+      const [, prov, id, audio, , ep] = watchMatch;
+      if (prov.toLowerCase() !== "donghuaworld" && KNOWN_SERIES_MAP[Number(id)]) {
+        return cachedWatch(
+          `watch:donghuaworld:${id}:sub:${ep}`,
+          () => donghuaworldHandler.fetch(rewriteRequest(request, `/watch/donghuaworld/${id}/sub/donghuaworld-${ep}`))
+        );
       }
     }
 

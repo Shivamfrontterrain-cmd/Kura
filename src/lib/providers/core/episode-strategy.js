@@ -14,7 +14,7 @@ import { getEpisodes as kaaEpisodes    } from "../providers/kickassanime.js";
 import { getEpisodes as animedunyaEpisodes } from "../providers/animedunya.js";
 import { getEpisodes as animeonsenEpisodes } from "../providers/animeonsen.js";
 import { getEpisodes as anipmEpisodes } from "../providers/anipm.js";
-import { getEpisodes as donghuaworldEpisodes } from "../providers/donghuaworld.js";
+import { getEpisodes as donghuaworldEpisodes, KNOWN_SERIES_MAP } from "../providers/donghuaworld.js";
 const inflight  = new Map();
 const bgRunning = new Set();
 
@@ -121,12 +121,17 @@ function providerFns(anilistId, status, ctx) {
   };
 }
 
-export function isDonghuaMedia(media) {
+export function isDonghuaMedia(media, anilistId) {
+  const idNum = Number(anilistId || media?.id);
+  if (idNum && KNOWN_SERIES_MAP[idNum]) return true;
   if (!media) return false;
-  const co = String(media.countryOfOrigin || "").toUpperCase();
+  const co = String(media.countryOfOrigin || media.originatingCountry || "").toUpperCase();
   if (co === "CN") return true;
   if (Array.isArray(media.synonyms) && media.synonyms.some((s) => typeof s === "string" && s.toLowerCase().includes("donghua"))) return true;
-  if (Array.isArray(media.genres) && media.genres.some((g) => typeof g === "string" && g.toLowerCase() === "donghua")) return true;
+  if (Array.isArray(media.genres) && media.genres.some((g) => typeof g === "string" && (g.toLowerCase() === "donghua" || g.toLowerCase() === "chinese animation"))) return true;
+  if (Array.isArray(media.tags) && media.tags.some((t) => typeof t?.name === "string" && (t.name.toLowerCase() === "donghua" || t.name.toLowerCase().includes("chinese animation")))) return true;
+  const allText = `${media?.title?.native || ""} ${media?.title?.romaji || ""} ${media?.title?.english || ""} ${(media?.synonyms || []).join(" ")}`.toLowerCase();
+  if (allText.includes("donghua") || allText.includes("nian fan")) return true;
   return false;
 }
 
@@ -135,7 +140,7 @@ export async function buildFilteredEpisodesWithCache(anilistId, providers, media
   const ctx  = { media, anizip, maxPages: undefined };
 
   // DONGHUA: For Chinese anime, strictly use only donghuaworld
-  const isDonghua = isDonghuaMedia(media);
+  const isDonghua = isDonghuaMedia(media, anilistId);
   if (isDonghua) {
     const dhw = await safe("donghuaworld", () =>
       withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx))
@@ -163,7 +168,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   const ctx = { media, anizip, maxPages: undefined };
 
   // DONGHUA: For Chinese anime, strictly use only donghuaworld
-  const isDonghua = isDonghuaMedia(media);
+  const isDonghua = isDonghuaMedia(media, anilistId);
   if (isDonghua) {
     const dhw = await safe("donghuaworld", () =>
       withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx))
