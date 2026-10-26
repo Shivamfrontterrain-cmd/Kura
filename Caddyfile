@@ -1,7 +1,21 @@
 kuraanime.duckdns.org {
-    reverse_proxy kura:3000
-}
+    # PocketBase Admin Dashboard
+    @pb_admin {
+        path /_/*
+        not path /_next/*
+    }
+    handle @pb_admin {
+        reverse_proxy pocketbase:8090
+    }
 
-kuraanime-pb.duckdns.org {
-    reverse_proxy pocketbase:8090
+    # PocketBase API endpoints
+    @pb_api path /api/collections/* /api/files/* /api/realtime* /api/admins/* /api/health* /api/batch* /api/settings*
+    handle @pb_api {
+        reverse_proxy pocketbase:8090
+    }
+
+    # Everything else goes to Next.js
+    handle {
+        reverse_proxy kura:3000
+    }
 }

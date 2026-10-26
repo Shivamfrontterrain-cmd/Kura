@@ -51,9 +51,10 @@ function LoginPopoverButton() {
           created: pb.authStore.record.created,
         });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Login error:", e);
-      toast.error("Invalid username or password", {
+      const msg = e?.response?.message || e?.message || "Invalid username or password";
+      toast.error(msg, {
         style: { background: "red" },
       });
     }
@@ -95,7 +96,7 @@ function LoginPopoverButton() {
           });
         }
       } else {
-        toast.error("Signup failed. Please try again.", {
+        toast.error(e?.message || "Signup failed. Please try again.", {
           style: { background: "red" },
         });
       }
