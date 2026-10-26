@@ -387,20 +387,20 @@ export async function handleWatch(anilistId, audio, epNum) {
       let srvName = label;
       let priority = 5;
 
-      if (lower.includes("all sub") || iframeSrc.includes("streamplay")) {
-        srvName = "StreamPlay (4K)";
-        priority = 1;
+      if (lower.includes("rumble") || iframeSrc.includes("rumble.com")) {
+        srvName = "Rumble (4K)";
+        priority = 3;
       } else if (lower.includes("dailymotion") || iframeSrc.includes("dailymotion.com")) {
         srvName = "Dailymotion (4K)";
         priority = 2;
         const dmMatch = iframeSrc.match(/video=([a-zA-Z0-9]+)/i);
         if (dmMatch) dmVideoId = dmMatch[1];
-      } else if (lower.includes("rumble") || iframeSrc.includes("rumble.com")) {
-        srvName = "Rumble (4K)";
-        priority = 3;
       } else if (lower.includes("ok ru") || lower.includes("ok.ru") || iframeSrc.includes("ok.ru")) {
         srvName = "OK.RU (4K)";
         priority = 4;
+      } else if (lower.includes("all sub") || iframeSrc.includes("streamplay")) {
+        srvName = "StreamPlay (4K)";
+        priority = 1;
       }
 
       if (!streams.some((s) => s.url === iframeSrc)) {
