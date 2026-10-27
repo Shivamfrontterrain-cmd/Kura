@@ -75,8 +75,8 @@ const VideoPlayerSection = () => {
       const match = episodeIdParam.match(/(\d+)(?:$|\/)/);
       if (match) return Number(match[1]);
     }
-    return 1;
-  }, [epParam, episodeIdParam]);
+    return allEpisodesData?.episodes?.[0]?.number || 1;
+  }, [epParam, episodeIdParam, allEpisodesData?.episodes]);
 
   // Sanitize episodeIdParam: for Donghua, reject non-donghuaworld episode IDs
   const validEpisodeIdParam = React.useMemo(() => {

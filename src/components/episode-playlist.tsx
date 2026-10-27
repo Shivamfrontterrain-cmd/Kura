@@ -38,18 +38,26 @@ const EpisodePlaylist = ({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const episodeRefs = useRef<(HTMLDivElement | null)[]>([]);
 
-  const [currentGroup, setCurrentGroup] = useState(
-    `1 - ${Math.min(50, episodes?.totalEpisodes!)}`,
-  );
+  const groupOptions = React.useCallback((): ISelectOptions[] => {
+    if (!episodes?.episodes?.length) return [];
+    const options: ISelectOptions[] = [];
+    const eps = episodes.episodes;
+    // group episodes in range of 50
+    for (let i = 0; i < eps.length; i += 50) {
+      const startEp = eps[i].number;
+      const endEp = eps[Math.min(i + 49, eps.length - 1)].number;
+      const range = startEp === endEp ? `${startEp}` : `${startEp} - ${endEp}`;
+      options.push({
+        label: range,
+        value: range,
+      });
+    }
+    return options;
+  }, [episodes?.episodes]);
+
+  const [currentGroup, setCurrentGroup] = useState<string>("");
   const [search, setSearch] = useState("");
-
-  const [start, end] = currentGroup.split(" - ").map(Number);
-  const filtered = episodes.episodes.filter((_, index) => {
-    return index >= start - 1 && index <= end - 1;
-  });
-
-  const [filteredEpisodes, setFilteredEpisodes] =
-    React.useState<Episode[]>(filtered);
+  const [filteredEpisodes, setFilteredEpisodes] = React.useState<Episode[]>([]);
 
   useEffect(() => {
     const epQuery = searchParams.get("ep");
@@ -71,22 +79,55 @@ const EpisodePlaylist = ({
   }, [episodes]);
 
   useEffect(() => {
-    if (!episodes || currentGroup === "") return;
-    const [start, end] = currentGroup.split(" - ").map(Number);
-    const filtered = episodes.episodes.filter((_, index) => {
-      return index >= start - 1 && index <= end - 1;
-    });
+    if (!episodes?.episodes?.length) return;
 
-    setFilteredEpisodes(filtered);
-  }, [episodes, currentGroup]);
+    const options = groupOptions();
+    if (!options.length) {
+      setFilteredEpisodes(episodes.episodes);
+      return;
+    }
+
+    const epParam = searchParams.get("ep");
+    const activeEpNum = epParam
+      ? Number(epParam)
+      : episodeId
+        ? episodes.episodes.find((e) => e.episodeId === episodeId)?.number || null
+        : null;
+
+    let targetIndex = 0;
+    if (activeEpNum !== null && !isNaN(activeEpNum)) {
+      const foundIdx = options.findIndex((opt) => {
+        const parts = opt.value.split(" - ").map(Number);
+        const start = parts[0];
+        const end = parts.length > 1 && !isNaN(parts[1]) ? parts[1] : start;
+        return activeEpNum >= start && activeEpNum <= end;
+      });
+      if (foundIdx !== -1) {
+        targetIndex = foundIdx;
+      }
+    } else if (currentGroup) {
+      const existingIdx = options.findIndex((opt) => opt.value === currentGroup);
+      if (existingIdx !== -1) {
+        targetIndex = existingIdx;
+      }
+    }
+
+    const selectedOption = options[targetIndex] || options[0];
+    setCurrentGroup(selectedOption.value);
+    setFilteredEpisodes(
+      episodes.episodes.slice(targetIndex * 50, (targetIndex + 1) * 50),
+    );
+  }, [episodes, searchParams, episodeId, groupOptions]);
 
   useEffect(() => {
-    const episodeIndex = episodes?.episodes.findIndex(
-      (episode) => episode.episodeId === episodeId,
+    if (!filteredEpisodes?.length) return;
+    const epParam = searchParams.get("ep");
+    const activeEpNum = epParam ? Number(epParam) : null;
+    const episodeIndex = filteredEpisodes.findIndex((ep) =>
+      activeEpNum !== null ? ep.number === activeEpNum : ep.episodeId === episodeId,
     );
 
     if (
-      episodeIndex !== undefined &&
       episodeIndex >= 0 &&
       episodeRefs.current[episodeIndex]
     ) {
@@ -94,63 +135,57 @@ const EpisodePlaylist = ({
       const scrollContainer = scrollContainerRef.current;
 
       if (episodeElement && scrollContainer) {
-        // Get the top offset of the episode relative to the scroll container
         const episodeOffsetTop = episodeElement.offsetTop;
-
-        // Scroll the container directly to the episode's top position
         scrollContainer.scrollTop =
           episodeOffsetTop -
           scrollContainer.offsetHeight / 2 +
           episodeElement.offsetHeight / 2 +
-          80; //Adding some extra px to achieve better positioning
+          80;
       }
     }
-    //eslint-disable-next-line
-  }, [animeId, episodes]);
+  }, [animeId, episodeId, searchParams, filteredEpisodes]);
 
   const handleOnSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!episodes) return;
-    const value = e.target.value;
+    if (!episodes?.episodes) return;
+    const value = e.target.value.toLowerCase().trim();
     setSearch(value);
 
     if (!value) {
-      // check if group is selected and filter based on that
-      const [start, end] = currentGroup.split(" - ").map(Number);
-      const filtered = episodes.episodes.filter((_, index) => {
-        return index >= start - 1 && index <= end - 1;
-      });
-      setFilteredEpisodes(filtered);
+      const options = groupOptions();
+      const rangeIndex = options.findIndex((opt) => opt.value === currentGroup);
+      const targetIndex = rangeIndex !== -1 ? rangeIndex : 0;
+      setFilteredEpisodes(
+        episodes.episodes.slice(targetIndex * 50, (targetIndex + 1) * 50),
+      );
       return;
     }
 
-    const filtered = episodes?.episodes.filter((episode) =>
-      episode.number.toString().toLowerCase().includes(value.toLowerCase()),
-    );
+    const filtered = episodes.episodes.filter((episode) => {
+      const epNumStr = episode.number.toString();
+      const epTitle = (episode.title || "").toLowerCase();
+      return (
+        epNumStr === value ||
+        epNumStr.includes(value) ||
+        epTitle.includes(value) ||
+        `episode ${epNumStr}`.includes(value)
+      );
+    });
 
     setFilteredEpisodes(filtered);
   };
 
   const handleOnSelectChange = (range: string) => {
     setCurrentGroup(range);
+    const options = groupOptions();
+    const rangeIndex = options.findIndex((opt) => opt.value === range);
+    if (rangeIndex !== -1 && episodes?.episodes) {
+      setFilteredEpisodes(
+        episodes.episodes.slice(rangeIndex * 50, (rangeIndex + 1) * 50),
+      );
+    }
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
-  };
-
-  const groupOptions = (): ISelectOptions[] => {
-    let start = 1;
-    const end = episodes?.totalEpisodes;
-    const options: ISelectOptions[] = [];
-    // group episodes in range of 50
-    while (start <= end!) {
-      const range = `${start} - ${Math.min(start + 49, end!)}`;
-      options.push({
-        label: range,
-        value: range,
-      });
-      start += 50;
-    }
-    return options;
   };
 
   return (

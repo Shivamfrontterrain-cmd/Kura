@@ -30,27 +30,26 @@ const AnimeEpisodes = ({ animeId }: Props) => {
 
   useEffect(() => {
     if (data) {
-      const episodes = data.episodes;
-      setAllEpisodes(episodes);
+      const allEps = data.episodes || [];
+      setAllEpisodes(allEps);
 
-      if (episodes.length > 50) {
-        // Calculate ranges
-        const rangesArray = [];
-        for (let i = 0; i < episodes.length; i += 50) {
-          const start = i + 1;
-          const end = Math.min(i + 50, episodes.length);
-          rangesArray.push(`${start}-${end}`);
+      if (allEps.length > 50) {
+        // Calculate ranges using actual episode numbers
+        const rangesArray: string[] = [];
+        for (let i = 0; i < allEps.length; i += 50) {
+          const startEp = allEps[i].number;
+          const endEp = allEps[Math.min(i + 50, allEps.length) - 1].number;
+          rangesArray.push(startEp === endEp ? `${startEp}` : `${startEp}-${endEp}`);
         }
         setRanges(rangesArray);
         setSelectedRange(rangesArray[0]);
 
         // Filter the first range directly from episodes
-        const filteredEpisodes = episodes.filter(
-          (_, index) => index + 1 >= 1 && index + 1 <= 50,
-        );
-        setEpisodes(filteredEpisodes);
+        setEpisodes(allEps.slice(0, 50));
       } else {
-        setEpisodes(episodes);
+        setRanges([]);
+        setSelectedRange("");
+        setEpisodes(allEps);
       }
     }
   }, [data]);
@@ -58,28 +57,45 @@ const AnimeEpisodes = ({ animeId }: Props) => {
   const handleRangeChange = (range: string) => {
     setSelectedRange(range);
 
-    const [start, end] = range.split("-").map(Number);
-    const filteredEpisodes = allEpisodes.filter(
-      (_, index) => index + 1 >= start && index + 1 <= end,
-    );
-    setEpisodes(filteredEpisodes);
+    const rangeIndex = ranges.indexOf(range);
+    if (rangeIndex !== -1) {
+      const startIdx = rangeIndex * 50;
+      setEpisodes(allEpisodes.slice(startIdx, startIdx + 50));
+    } else {
+      const parts = range.split("-").map(Number);
+      const start = parts[0];
+      const end = parts.length > 1 && !isNaN(parts[1]) ? parts[1] : start;
+      const filteredEpisodes = allEpisodes.filter(
+        (ep) => ep.number >= start && ep.number <= end,
+      );
+      setEpisodes(filteredEpisodes);
+    }
   };
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value.toLowerCase();
+    const query = e.target.value.toLowerCase().trim();
     if (!query) {
       // Reset episodes to the selected range
-      const [start, end] = selectedRange.split("-").map(Number);
-      const filteredEpisodes = allEpisodes.filter(
-        (_, index) => index + 1 >= start && index + 1 <= end,
-      );
-      setEpisodes(filteredEpisodes);
+      if (selectedRange && ranges.length > 0) {
+        const rangeIndex = ranges.indexOf(selectedRange);
+        if (rangeIndex !== -1) {
+          const startIdx = rangeIndex * 50;
+          setEpisodes(allEpisodes.slice(startIdx, startIdx + 50));
+        } else {
+          setEpisodes(allEpisodes.slice(0, 50));
+        }
+      } else {
+        setEpisodes(allEpisodes);
+      }
     } else {
-      const filteredEpisodes = episodes.filter((episode, index) => {
+      const filteredEpisodes = allEpisodes.filter((episode) => {
+        const epNumStr = episode.number.toString();
+        const epTitle = (episode.title || "").toLowerCase();
         return (
-          (index + 1).toString().includes(query) ||
-          episode.title.toLowerCase().includes(query) ||
-          "episode".includes(query.trim())
+          epNumStr === query ||
+          epNumStr.includes(query) ||
+          epTitle.includes(query) ||
+          `episode ${epNumStr}`.includes(query)
         );
       });
       setEpisodes(filteredEpisodes);

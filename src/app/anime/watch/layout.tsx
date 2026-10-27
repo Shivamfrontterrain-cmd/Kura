@@ -150,11 +150,12 @@ const Layout = (props: Props) => {
       if (isValidEpisodeId && episodeId) {
         setSelectedEpisode(episodeId);
       } else {
+        const defaultEpNum = episodes.episodes[0]?.number || 1;
         const epNum = epNumberParam
           ? Number(epNumberParam)
           : (episodeId && !isNaN(Number(episodeId))
             ? Number(episodeId)
-            : (episodeId ? Number(episodeId.split("-").pop()) || 1 : 1));
+            : (episodeId ? Number(episodeId.split("-").pop()) || defaultEpNum : defaultEpNum));
         const matchedEp =
           episodes.episodes.find((e) => e.number === epNum) ||
           (epNum > episodes.episodes[episodes.episodes.length - 1].number
