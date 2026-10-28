@@ -475,11 +475,11 @@ export function isKnownDonghua(animeId?: string | number | null, media?: any): b
 
   const co = String(media?.countryOfOrigin || media?.originatingCountry || "").toUpperCase();
   if (co === "CN") return true;
-  if (co === "JP" || co === "KR") return false; // Non-Chinese anime
+  if (co === "JP" || co === "JA" || co === "KR" || co === "KO") return false; // Non-Chinese anime
 
   if (media?.isDonghua === true) return true;
   const allText = `${media?.name || ""} ${media?.title?.native || ""} ${media?.title?.romaji || ""} ${media?.title?.english || ""} ${(media?.synonyms || []).join(" ")}`.toLowerCase();
-  if (allText.includes("donghua") || allText.includes("nian fan")) return true;
-  if (/[\u4e00-\u9fa5]/.test(allText) && !co) return true;
+  if (/[\u3040-\u30ff\uac00-\ud7af]/.test(allText)) return false; // Japanese Kana or Korean Hangul = NOT Donghua!
+  if (allText.includes("donghua") || allText.includes("chinese animation") || allText.includes("nian fan")) return true;
   return false;
 }

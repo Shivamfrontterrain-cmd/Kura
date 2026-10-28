@@ -39,12 +39,24 @@ function latestEpisodeFromResponse(data) {
 
 function hasCurrentProviders(data) {
   if (!data) return false;
+  const co = String(data.countryOfOrigin || data?.mappings?.countryOfOrigin || "").toUpperCase();
+  if (co === "JP" || co === "JA" || co === "KR" || co === "KO") {
+    return (
+      !Object.prototype.hasOwnProperty.call(data, "donghuaworld") &&
+      Object.prototype.hasOwnProperty.call(data, "animepahe") &&
+      Object.prototype.hasOwnProperty.call(data, "anizone") &&
+      Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
+      Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
+      Object.prototype.hasOwnProperty.call(data, "anipm") &&
+      !Object.prototype.hasOwnProperty.call(data, "anihq")
+    );
+  }
   const isDonghua =
     isDonghuaMedia(data?.mappings, data?.mappings?.id || data?.mappings?.anilistId) ||
     data.countryOfOrigin === "CN" ||
     data?.mappings?.countryOfOrigin === "CN" ||
     data.isDonghua === true ||
-    Object.prototype.hasOwnProperty.call(data, "donghuaworld");
+    false;
 
   if (isDonghua) {
     // STRICT RESTRICTION: Donghua must have donghuaworld and ONLY donghuaworld!
@@ -202,7 +214,7 @@ function scheduleRefresh(anilistId, entry, env) {
 
     const result = await buildResponse(anilistId, media, anizip, true);
     const latestEpisode = latestEpisodeFromResponse(result);
-    await setAsync(`episodes:match12:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
+    await setAsync(`episodes:match13:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
     writeSyncState(anilistId, {
       lastProbeAt: Date.now(),
       lastSyncAt: Date.now(),
@@ -227,7 +239,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match12:${anilistId}`;
+  const cacheKey = `episodes:match13:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

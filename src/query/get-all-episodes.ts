@@ -121,12 +121,14 @@ const getAllEpisodes = async (animeId: string): Promise<IEpisodesData> => {
 
     // Strict Donghua detection and isolation:
     // If it is Donghua, strictly and ONLY use donghuaworld! Never mix in Japanese providers!
-    const isDonghua =
+    const epCo = String(data?.countryOfOrigin || data?.mappings?.countryOfOrigin || "").toUpperCase();
+    const isNonDonghuaCountry = epCo === "JP" || epCo === "JA" || epCo === "KR" || epCo === "KO";
+    const isDonghua = !isNonDonghuaCountry && (
       isKnownDonghua(animeId, data?.mappings || data) ||
-      Boolean(providersMap["donghuaworld"]) ||
+
       data?.countryOfOrigin === "CN" ||
       data?.mappings?.countryOfOrigin === "CN" ||
-      data?.isDonghua === true;
+      data?.isDonghua === true);
 
     if (isDonghua) {
       // STRICT DONGHUA RESTRICTION: immediately purge all non-donghuaworld providers

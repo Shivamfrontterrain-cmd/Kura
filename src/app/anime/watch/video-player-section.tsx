@@ -52,20 +52,30 @@ const VideoPlayerSection = () => {
 
   const isDonghua = React.useMemo(() => {
     return (
-      isKnownDonghua(animeIdParam, anime?.anime?.info) ||
-      (anime?.anime?.info as any)?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.rawResponse as any)?.countryOfOrigin === "CN" ||
-      (allEpisodesData?.availableProviders || []).includes("donghuaworld") ||
-      (selectedEpisode || "").includes("/donghuaworld/") ||
-      (allEpisodesData?.episodes?.[0]?.episodeId || "").includes("/donghuaworld/")
+      (() => {
+        const co = String(
+          (anime?.anime?.info as any)?.countryOfOrigin ||
+          (allEpisodesData?.rawResponse as any)?.countryOfOrigin ||
+          (allEpisodesData?.rawResponse as any)?.mappings?.countryOfOrigin ||
+          ""
+        ).toUpperCase();
+        if (co === "JP" || co === "JA" || co === "KR" || co === "KO") return false;
+        if (co === "CN" || (allEpisodesData?.rawResponse as any)?.isDonghua === true) return true;
+        return isKnownDonghua(animeIdParam, anime?.anime?.info || allEpisodesData?.rawResponse?.mappings);
+      })()
+
+
+
+
+
     );
   }, [
     animeIdParam,
     anime?.anime?.info,
     allEpisodesData?.rawResponse,
-    allEpisodesData?.availableProviders,
-    selectedEpisode,
-    allEpisodesData?.episodes,
+
+
+
   ]);
 
   // Target episode number from ?ep= or extracted from episode parameter
@@ -85,25 +95,39 @@ const VideoPlayerSection = () => {
       if (episodeIdParam.includes("/donghuaworld/")) return episodeIdParam;
       return `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}`;
     }
+    if (episodeIdParam.includes("/donghuaworld/")) return "";
     return episodeIdParam;
   }, [episodeIdParam, isDonghua, animeIdParam, targetEpNum]);
 
   // Sanitize selectedEpisode: for Donghua, reject non-donghuaworld stored IDs
   const validSelectedEpisode = React.useMemo(() => {
     if (!selectedEpisode) return "";
+    if (selectedEpisode.includes("/watch/")) {
+      const parts = selectedEpisode.replace(/^\//, "").split("/");
+      const epAnimeId = parts[2];
+      if (epAnimeId && epAnimeId !== animeIdParam) return "";
+    }
     if (isDonghua && !selectedEpisode.includes("/donghuaworld/")) {
       return "";
     }
+    if (!isDonghua && selectedEpisode.includes("/donghuaworld/")) return "";
     return selectedEpisode;
-  }, [selectedEpisode, isDonghua]);
+  }, [selectedEpisode, isDonghua, animeIdParam]);
 
   // Store synchronization to fix dirty localStorage / store
   useEffect(() => {
     if (isDonghua && selectedEpisode && !selectedEpisode.includes("/donghuaworld/")) {
       const cleanId = `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}`;
       setSelectedEpisode(cleanId);
+    } else if (!isDonghua && selectedEpisode && selectedEpisode.includes("/donghuaworld/")) {
+      const firstEpId = allEpisodesData?.episodes?.[0]?.episodeId || "";
+      if (firstEpId && !firstEpId.includes("/donghuaworld/")) {
+        setSelectedEpisode(firstEpId);
+      } else {
+        setSelectedEpisode("");
+      }
     }
-  }, [isDonghua, selectedEpisode, animeIdParam, targetEpNum, setSelectedEpisode]);
+  }, [isDonghua, selectedEpisode, animeIdParam, targetEpNum, allEpisodesData?.episodes, setSelectedEpisode]);
 
   // Match episode number from ?ep= parameter if present (with clamp to latest available)
   const targetEpByNumber =
@@ -125,7 +149,7 @@ const VideoPlayerSection = () => {
         : "") ||
     validEpisodeIdParam ||
     (isDonghua ? `/watch/donghuaworld/${animeIdParam}/sub/donghuaworld-${targetEpNum}` : "") ||
-    allEpisodesData?.episodes?.[0]?.episodeId ||
+    (!isDonghua && allEpisodesData?.episodes?.[0]?.episodeId?.includes("/donghuaworld/") ? "" : allEpisodesData?.episodes?.[0]?.episodeId) ||
     "";
 
   // Sync selectedEpisode in store when ?ep= parameter changes
@@ -133,7 +157,7 @@ const VideoPlayerSection = () => {
     if (!targetEpByNumber?.episodeId) return;
     const parts = (selectedEpisode || "").replace(/^\//, "").split("/");
     const selEpNum = parts[4] ? Number(parts[4].split("-").pop()) : Number(selectedEpisode);
-    if (!selectedEpisode || selEpNum !== targetEpByNumber.number || (isDonghua && !selectedEpisode.includes("/donghuaworld/"))) {
+    if (!selectedEpisode || selEpNum !== targetEpByNumber.number || (isDonghua && !selectedEpisode.includes("/donghuaworld/")) || (!isDonghua && selectedEpisode.includes("/donghuaworld/"))) {
       const providers = allEpisodesData?.rawResponse?.providers || {};
       const curProv = isDonghua ? "donghuaworld" : parts[1];
       const curCat = (parts[3] === "dub" ? "dub" : "sub") as "sub" | "dub";
@@ -151,7 +175,7 @@ const VideoPlayerSection = () => {
   }, [
     targetEpByNumber?.episodeId,
     targetEpByNumber?.number,
-    selectedEpisode,
+
     allEpisodesData?.rawResponse?.providers,
     setSelectedEpisode,
     isDonghua,
@@ -210,7 +234,13 @@ const VideoPlayerSection = () => {
 
   // Cleanly extract active provider, category, and episode number
   const cleanParts = activeEpisodeId.replace(/^\//, "").split("/");
-  const currentProviderName = cleanParts[1] || providerNames[0] || "";
+  const rawProviderFromSlug = cleanParts[1];
+  const currentProviderName =
+    !isDonghua && rawProviderFromSlug === "donghuaworld"
+      ? providerNames.find((p) => p !== "donghuaworld") || ""
+      : isDonghua
+        ? "donghuaworld"
+        : rawProviderFromSlug || providerNames[0] || "";
   const activeCategory: "sub" | "dub" =
     cleanParts[3] === "dub" ? "dub" : preferredCategory;
 
