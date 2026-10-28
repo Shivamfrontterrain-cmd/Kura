@@ -12,6 +12,7 @@ import kaaHandler                  from "./providers/kickassanime.js";
 import animedunyaHandler           from "./providers/animedunya.js";
 import animeonsenHandler           from "./providers/animeonsen.js";
 import anipmHandler                from "./providers/anipm.js";
+import animepaheHandler           from "./providers/animepahe.js";
 import donghuaworldHandler, { KNOWN_SERIES_MAP } from "./providers/donghuaworld.js";
 import { getEpisodesResponse, getFilteredEpisodesResponse } from "./core/episode-cache.js";
 import { resolveProviders, isDonghuaMedia } from "./core/episode-strategy.js";
@@ -271,6 +272,15 @@ export default {
       }
     }
 
+    m = path.match(/^\/watch\/animepahe\/(\d+)\/(sub|dub)\/animepahe-(\d+)\/?$/);
+    if (m) {
+      const [, id, audio, ep] = m;
+      return cachedWatch(
+        `watch:animepahe:${id}:${audio}:${ep}`,
+        () => animepaheHandler.fetch(request)
+      );
+    }
+
     m = path.match(/^\/watch\/donghuaworld\/(\d+)\/(sub|dub)\/donghuaworld-(\d+)\/?$/);
     if (m) {
       const [, id, audio, ep] = m;
@@ -407,6 +417,7 @@ export default {
       name: `Kitsune Provider API ${env?.API_VERSION ?? "unknown"}`,
       cache: _CACHE_ENABLED,
       providers: [
+        "animepahe",
         "donghuaworld",
         "mkissa",
         "reanime",
@@ -425,6 +436,7 @@ export default {
         "/map/:anilistId",
         "/episodes/:anilistId",
         "/episodes/:provider[/:provider...]/:anilistId?map=true|false",
+        "/watch/animepahe/:id/sub|dub/animepahe-:ep",
         "/watch/mkissa/:id/sub|dub/mkissa-:ep",
         "/watch/reanime/:id/sub|dub/reanime-:ep",
         "/stream/reanime/:id/sub|dub/:ep",

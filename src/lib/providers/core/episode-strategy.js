@@ -2,6 +2,7 @@ import {
   getAsync, setAsync, isFresh, needsRefresh,
   episodeTTL,
 } from "./smartcache.js";
+import { getEpisodes as animepaheEpisodes } from "../providers/animepahe.js";
 import { getEpisodes as mkissaEpisodes } from "../providers/mkissa.js";
 import { getEpisodes as reanimeEpisodes } from "../providers/reanime.js";
 import { getEpisodes as anikotoEpisodes } from "../providers/anikoto.js";
@@ -75,6 +76,8 @@ async function safe(label, fn) {
 }
 
 const PROVIDER_ALIASES = {
+  animepahe: "animepahe",
+  pahe: "animepahe",
   donghuaworld: "donghuaworld",
   donghua: "donghuaworld",
   dhw: "donghuaworld",
@@ -105,6 +108,7 @@ export function resolveProviders(rawNames) {
 
 function providerFns(anilistId, status, ctx) {
   return {
+    animepahe: () => withCache(`epv:match2:animepahe:${anilistId}`, status, () => animepaheEpisodes(anilistId, ctx)),
     donghuaworld: () => withCache(`epv:match1:donghuaworld:${anilistId}`, status, () => donghuaworldEpisodes(anilistId, ctx)),
     mkissa: () => withCache(`epv:match2:mkissa:${anilistId}`, status, () => mkissaEpisodes(anilistId, ctx)),
     reanime:  () => withCache(`epv:match2:reanime:${anilistId}`, status, () => reanimeEpisodes(anilistId, ctx)),
@@ -181,7 +185,8 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
     };
   }
 
-  const [mkissa, reanime, anikoto, animegg, animenosub, anizone, aniwaves, senshi, kaa, animedunya, animeonsen, anipm] = await Promise.all([
+  const [animepahe, mkissa, reanime, anikoto, animegg, animenosub, anizone, aniwaves, senshi, kaa, animedunya, animeonsen, anipm] = await Promise.all([
+    safe("animepahe",  () => withCache(`epv:match2:animepahe:${anilistId}`, status, () => animepaheEpisodes(anilistId, ctx))),
     safe("mkissa",     () => withCache(`epv:match2:mkissa:${anilistId}`,     status, () => mkissaEpisodes(anilistId, ctx))),
     safe("reanime",    () => withCache(`epv:match2:reanime:${anilistId}`,    status, () => reanimeEpisodes(anilistId, ctx))),
     safe("anikoto",    () => withCache(`epv:match2:anikoto:${anilistId}`,    status, () => anikotoEpisodes(anilistId, ctx))),
@@ -197,6 +202,7 @@ export async function buildEpisodesWithCache(anilistId, media, anizip) {
   ]);
 
   return {
+    animepahe:   animepahe.ok   ? animepahe.data   : { error: animepahe.error,   stack: animepahe.stack },
     mkissa:      mkissa.ok      ? mkissa.data      : { error: mkissa.error,      stack: mkissa.stack },
     reanime:     reanime.ok     ? reanime.data     : { error: reanime.error,     stack: reanime.stack },
     anikoto:     anikoto.ok     ? anikoto.data     : { error: anikoto.error,     stack: anikoto.stack },

@@ -62,6 +62,7 @@ function hasCurrentProviders(data) {
   // STRICT RESTRICTION: Non-Donghua anime must NOT have donghuaworld!
   return (
     !Object.prototype.hasOwnProperty.call(data, "donghuaworld") &&
+    Object.prototype.hasOwnProperty.call(data, "animepahe") &&
     Object.prototype.hasOwnProperty.call(data, "anizone") &&
     Object.prototype.hasOwnProperty.call(data, "aniwaves") &&
     Object.prototype.hasOwnProperty.call(data, "animeonsen") &&
@@ -84,7 +85,7 @@ function resolveShared(anilistId, freshMedia = false) {
 }
 
 async function clearProviderCache(anilistId, media) {
-  for (const p of ["pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
+  for (const p of ["animepahe", "pahe", "manga", "mkissa", "reanime", "anikoto", "animegg", "anizone", "aniwaves", "animeonsen", "anipm"]) {
     await delAsync(`epv:${p}:${anilistId}`);
     if (p === "reanime" || p === "anikoto") {
       await delAsync(`epv:${p}:v2:${anilistId}`);
@@ -201,7 +202,7 @@ function scheduleRefresh(anilistId, entry, env) {
 
     const result = await buildResponse(anilistId, media, anizip, true);
     const latestEpisode = latestEpisodeFromResponse(result);
-    await setAsync(`episodes:match10:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
+    await setAsync(`episodes:match12:${anilistId}`, result, FULL_TTL, NORMAL_PROBE_INTERVAL);
     writeSyncState(anilistId, {
       lastProbeAt: Date.now(),
       lastSyncAt: Date.now(),
@@ -226,7 +227,7 @@ function scheduleRefresh(anilistId, entry, env) {
 }
 
 export async function getEpisodesResponse(anilistId, env) {
-  const cacheKey = `episodes:match11:${anilistId}`;
+  const cacheKey = `episodes:match12:${anilistId}`;
   const entry = await getAsync(cacheKey);
 
   if (entry && hasCurrentProviders(entry.data)) {

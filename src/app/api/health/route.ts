@@ -11,6 +11,7 @@ export async function GET() {
       version: "2.5.0",
       providers: [
         "donghuaworld",
+        "animepahe",
         "mkissa",
         "reanime",
         "anikoto",

@@ -198,10 +198,15 @@ const VideoPlayerSection = () => {
     () => allEpisodesData?.rawResponse?.providers || {},
     [allEpisodesData?.rawResponse?.providers],
   );
-  const providerNames = React.useMemo(
-    () => Object.keys(rawProviders),
-    [rawProviders],
-  );
+  const providerNames = React.useMemo(() => {
+    if (
+      Array.isArray(allEpisodesData?.availableProviders) &&
+      allEpisodesData.availableProviders.length > 0
+    ) {
+      return allEpisodesData.availableProviders;
+    }
+    return Object.keys(rawProviders);
+  }, [allEpisodesData?.availableProviders, rawProviders]);
 
   // Cleanly extract active provider, category, and episode number
   const cleanParts = activeEpisodeId.replace(/^\//, "").split("/");

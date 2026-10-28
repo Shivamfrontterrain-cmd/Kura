@@ -8,6 +8,7 @@ import { isKnownDonghua } from "@/constants/donghua";
 
 const KNOWN_PROVIDERS = [
   "donghuaworld",
+  "animepahe",
   "anizone",
   "reanime",
   "anikoto",
